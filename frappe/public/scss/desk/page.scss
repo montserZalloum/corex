@@ -44,7 +44,7 @@
 }
 
 .page-container {
-	background-color: var(--bg-color);
+	
 
 	.page-body.full-width {
 		width: 100%;
@@ -99,7 +99,7 @@
 	z-index: 6;
 	position: sticky;
 	top: var(--navbar-height);
-	background: var(--bg-color);
+	// background: var(--bg-color);
 	margin-bottom: 5px;
 	transition: 0.5s top;
 	.page-head-content {

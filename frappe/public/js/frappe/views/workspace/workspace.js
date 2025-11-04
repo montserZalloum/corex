@@ -204,10 +204,10 @@ frappe.views.Workspace = class Workspace {
 			`<div class="standard-sidebar-section nested-container" data-title="${category.id}"></div>`
 		);
 
-		let $title = $(`<button class="btn-reset standard-sidebar-label">
+		let $title = $(`<div class="cx-standard-sidebar-label-toggle grid-full-row"><button class="btn-reset standard-sidebar-label">
 			<span>${frappe.utils.icon("es-line-down", "xs")}</span>
 			<span class="section-title">${category.label}<span>
-		</div>`).appendTo(sidebar_section);
+		</div></div>`).appendTo(sidebar_section);
 		$title.attr({
 			"aria-label": __("Toggle Section: {0}", [category.label]),
 			"aria-expanded": "true",

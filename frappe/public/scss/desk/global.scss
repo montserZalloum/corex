@@ -8,7 +8,7 @@ body {
 	color: var(--text-muted);
 	font-weight: var(--weight-regular);
 	letter-spacing: 0.02em;
-	background-color: var(--bg-color);
+	background: linear-gradient(to bottom, #ffc0cb, #87cefa);
 
 	&.full-width {
 		@include media-breakpoint-up(md) {
@@ -512,7 +512,7 @@ kbd {
 		}
 
 		svg {
-			margin-right: var(--margin-sm);
+			// margin-right: var(--margin-sm);
 		}
 	}
 }
