@@ -49,6 +49,7 @@ frappe.views.Workspace = class Workspace {
 			"purple",
 			"light-blue",
 		];
+		this.active_workspace_window = null; // Track which window is active for routing
 
 		this.prepare_container();
 		this.setup_pages();
@@ -432,6 +433,7 @@ frappe.views.Workspace = class Workspace {
 	async show_page(page) {
 		// Desktop mode: Don't render page content, just setup for window system
 		// Users will click workspace icons to open windows instead
+		this.remove_page_skeleton();
 		this.setup_actions(page);
 		return;
 	}
@@ -1473,12 +1475,16 @@ frappe.views.Workspace = class Workspace {
 		// Create a unique window ID for this workspace
 		const window_id = `workspace-window-${frappe.router.slug(page.name)}-${Date.now()}`;
 
-		// Create window container
+		// Create window container with inner content area
 		const $window = $(`
 			<div class="workspace-window" id="${window_id}" data-page-name="${page.name}" data-page-public="${page.public}">
 				<div class="window-titlebar">
-					<span class="window-title">${page.name}</span>
+					<div class="window-breadcrumb">
+						<span class="window-title">${page.name}</span>
+						<span class="breadcrumb-trail" style="display: none;"></span>
+					</div>
 					<div class="window-controls">
+						<button class="btn-window-back hidden" title="Back" style="display: none;">←</button>
 						<button class="btn-window-minimize" title="Minimize">_</button>
 						<button class="btn-window-maximize" title="Maximize">□</button>
 						<button class="btn-window-close" title="Close">×</button>
@@ -1492,11 +1498,22 @@ frappe.views.Workspace = class Workspace {
 			</div>
 		`).appendTo(this.body);
 
+		// Store window reference
+		$window.data("workspace-instance", this);
+		$window.data("workspace-page", page);
+
+		// Set this as the active window when clicking inside
+		$window.on("mousedown", () => {
+			this.active_workspace_window = $window;
+		});
+
 		// Make window draggable
 		this.make_window_draggable($window);
 
 		// Add window control handlers
 		$window.find(".btn-window-close").on("click", () => {
+			// Remove all pages created for this window
+			this.cleanup_window_pages($window);
 			$window.remove();
 		});
 
@@ -1506,6 +1523,10 @@ frappe.views.Workspace = class Workspace {
 
 		$window.find(".btn-window-maximize").on("click", () => {
 			$window.toggleClass("maximized");
+		});
+
+		$window.find(".btn-window-back").on("click", () => {
+			this.show_workspace_content_in_window($window);
 		});
 
 		// Load workspace content
@@ -1571,6 +1592,108 @@ frappe.views.Workspace = class Workspace {
 
 		// Initialize editor for this window
 		this.initialize_window_editor(editor_id, this.content);
+
+		// Store editor reference for this window
+		$window.data("workspace-editor", this.editor);
+
+		// Setup routing interception for this window
+		this.setup_window_routing($window);
+	}
+
+	setup_window_routing($window) {
+		// Store original container change_to method
+		if (!frappe.views.Container.prototype._original_change_to) {
+			frappe.views.Container.prototype._original_change_to = frappe.views.Container.prototype.change_to;
+		}
+
+		// Override change_to to handle window routing
+		const self = this;
+		frappe.views.Container.prototype.change_to = function(label) {
+			// Check if there's an active workspace window
+			if (self.active_workspace_window && self.active_workspace_window.is(":visible")) {
+				// Route to window instead of main container
+				return self.change_page_in_window(self.active_workspace_window, label);
+			}
+			// Otherwise use original behavior
+			return self._original_change_to.call(this, label);
+		};
+	}
+
+	change_page_in_window($window, label) {
+		let page;
+		if (label.tagName) {
+			page = label;
+		} else {
+			page = frappe.pages[label];
+		}
+
+		if (!page) {
+			console.log(__("Page not found") + ": " + label);
+			return;
+		}
+
+		const $content = $window.find(".window-content");
+
+		// Hide the workspace content
+		$content.find(".desk-page").hide();
+
+		// Append page to window if not already there
+		if (!page.parentElement || !page.parentElement.classList.contains("window-content")) {
+			$content.append(page);
+		}
+
+		// Show the page
+		$(page).show();
+
+		// Update breadcrumb
+		this.update_window_breadcrumb($window, label);
+
+		// Show back button
+		$window.find(".btn-window-back").show();
+
+		// Store current page in window
+		$window.data("current-page", page);
+		$window.data("workspace-active-page", label);
+	}
+
+	update_window_breadcrumb($window, page_label) {
+		const $breadcrumb = $window.find(".breadcrumb-trail");
+		const page = frappe.pages[page_label];
+		const page_title = page?.label || page_label;
+
+		$breadcrumb.html(` > ${page_title}`);
+	}
+
+	show_workspace_content_in_window($window) {
+		const $content = $window.find(".window-content");
+
+		// Hide any open pages
+		$content.find(".page-container").hide();
+
+		// Show workspace content
+		$content.find(".desk-page").show();
+
+		// Hide back button
+		$window.find(".btn-window-back").hide();
+
+		// Clear breadcrumb
+		$window.find(".breadcrumb-trail").html("");
+
+		// Clear stored page
+		$window.data("current-page", null);
+		$window.data("workspace-active-page", null);
+	}
+
+	cleanup_window_pages($window) {
+		const $content = $window.find(".window-content");
+		// Remove any page containers that were added to this window
+		$content.find(".page-container").each((i, el) => {
+			const label = el.getAttribute("id")?.replace("page-", "");
+			if (label && frappe.pages[label]) {
+				// Remove from frappe.pages if it was temporarily added
+				// Keep it for now as it might be reused
+			}
+		});
 	}
 
 	initialize_window_editor(editor_id, blocks) {

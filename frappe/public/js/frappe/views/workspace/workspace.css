@@ -49,11 +49,28 @@
 	border-bottom: 1px solid #005a9e;
 }
 
+.window-breadcrumb {
+	display: flex;
+	align-items: center;
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
 .window-title {
 	font-size: 12px;
 	font-weight: 500;
-	flex: 1;
 	padding-left: 4px;
+}
+
+.breadcrumb-trail {
+	font-size: 12px;
+	margin-left: 4px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 /* Window Controls (Minimize, Maximize, Close) */
@@ -84,6 +101,15 @@
 
 .btn-window-close:hover {
 	background: #e81123 !important;
+}
+
+.btn-window-back {
+	margin-right: 8px;
+	font-size: 16px;
+}
+
+.btn-window-back:hover {
+	background: rgba(255, 255, 255, 0.2);
 }
 
 /* Window Content Area */
