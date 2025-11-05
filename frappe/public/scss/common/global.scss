@@ -161,7 +161,7 @@ body {
 	margin-right: var(--margin-sm);
 }
 body.full-width .container {
-	width: 100%;
+	width: 100%!important;
 }
 #body {
 	& > .page-container:first-of-type {
@@ -179,26 +179,18 @@ body.full-width .container {
 				}
 			}
 		}
-	}
+	} 
 	& > .cx-page-body {
 		& > .page-wrapper {
 			& > .page-content {
 				& > .layout-main {
-					
-						.col-lg-2 {
-							flex: 0 0 16.66666667%;
-							max-width: 16.66666667%;
-							padding: 0;
-						}
-						
-
 						.workspace-window {
 							.cx-layout-wrapper {
 								height: auto!important;
 								.layout-main-section {
 									border: 1px solid var(--border-color);
 									padding: var(--padding-md);
-									min-height: auto;
+									min-height: auto!important;
 									height:100%;
 								}
 							}

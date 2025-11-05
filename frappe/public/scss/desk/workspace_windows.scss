@@ -16,7 +16,7 @@ $shadow-heavy: 0 8px 24px rgba(0, 0, 0, 0.2);
 // Desktop Background
 .layout-main-section {
 	overflow: auto !important;
-	background: linear-gradient(135deg, #0078d4 0%, #107c10 100%);
+	// background: linear-gradient(135deg, #0078d4 0%, #107c10 100%);
 	min-height: 100vh;
 	position: relative;
 
@@ -72,7 +72,7 @@ $shadow-heavy: 0 8px 24px rgba(0, 0, 0, 0.2);
 	}
 
 	&.dragging {
-		opacity: 0.95;
+		opacity: 0.6;
 		transition: none;
 		box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
 	}
@@ -196,7 +196,7 @@ $shadow-heavy: 0 8px 24px rgba(0, 0, 0, 0.2);
 	position: relative;
 	border-top: 1px solid rgba(0, 0, 0, 0.05);
 	transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-
+	
 	&.minimized {
 		max-height: 0;
 		overflow: hidden !important;
@@ -223,6 +223,9 @@ $shadow-heavy: 0 8px 24px rgba(0, 0, 0, 0.2);
 			background: rgba(0, 0, 0, 0.3);
 		}
 	}
+	.cx-layout-wrapper {
+		height: auto!important;
+	}
 }
 
 // Editor styles within window
@@ -240,6 +243,9 @@ $shadow-heavy: 0 8px 24px rgba(0, 0, 0, 0.2);
 		.page-title {
 			padding-inline-start: 0;
 		}
+	}
+	.col-md-2 {
+		padding-inline: 0 !important;
 	}
 }
 
