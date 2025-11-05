@@ -160,3 +160,18 @@ body {
 .margin-right {
 	margin-right: var(--margin-sm);
 }
+.cx-layout-wrapper {
+	height:0!important;
+	& > .layout-main-section {
+		top: 0;
+		left: 0;
+		width: 100%;
+		border: 0;
+		background: none;
+		height: 0;
+		min-height: auto;
+		padding: 0;
+		margin: 0;
+	}
+
+}
