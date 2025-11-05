@@ -76,6 +76,11 @@ $shadow-heavy: 0 8px 24px rgba(0, 0, 0, 0.2);
 		transition: none;
 		box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
 	}
+
+	&.resizing {
+		transition: none;
+		box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+	}
 }
 
 @keyframes slideIn {
@@ -185,6 +190,98 @@ $shadow-heavy: 0 8px 24px rgba(0, 0, 0, 0.2);
 	&:hover {
 		background: $titlebar-close-hover !important;
 	}
+}
+
+// Resize Handles
+.resize-handle {
+	position: absolute;
+	background: transparent;
+	z-index: 999;
+	opacity: 0;
+	transition: opacity 0.2s ease;
+
+	&:hover {
+		opacity: 1;
+	}
+}
+
+// Edge handles
+.resize-handle-top,
+.resize-handle-bottom {
+	left: 0;
+	right: 0;
+	height: 6px;
+	cursor: ns-resize;
+}
+
+.resize-handle-top {
+	top: 0;
+}
+
+.resize-handle-bottom {
+	bottom: 0;
+}
+
+.resize-handle-left,
+.resize-handle-right {
+	top: 0;
+	bottom: 0;
+	width: 6px;
+	cursor: ew-resize;
+}
+
+.resize-handle-left {
+	left: 0;
+}
+
+.resize-handle-right {
+	right: 0;
+}
+
+// Corner handles
+.resize-handle-top-left {
+	top: 0;
+	left: 0;
+	width: 12px;
+	height: 12px;
+	cursor: nwse-resize;
+}
+
+.resize-handle-top-right {
+	top: 0;
+	right: 0;
+	width: 12px;
+	height: 12px;
+	cursor: nesw-resize;
+}
+
+.resize-handle-bottom-left {
+	bottom: 0;
+	left: 0;
+	width: 12px;
+	height: 12px;
+	cursor: nesw-resize;
+}
+
+.resize-handle-bottom-right {
+	bottom: 0;
+	right: 0;
+	width: 12px;
+	height: 12px;
+	cursor: nwse-resize;
+	background: linear-gradient(135deg, transparent 50%, rgba(0, 120, 212, 0.3) 50%);
+	border-radius: 0 0 8px 0;
+	opacity: 0.6;
+
+	&:hover {
+		opacity: 1;
+		background: linear-gradient(135deg, transparent 50%, rgba(0, 120, 212, 0.6) 50%);
+	}
+}
+
+// Show all handles on hover
+.workspace-window:hover .resize-handle {
+	opacity: 1;
 }
 
 // Window Content Area

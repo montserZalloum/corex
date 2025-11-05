@@ -1499,6 +1499,15 @@ frappe.views.Workspace = class Workspace {
 						<p>Loading ${page.name}...</p>
 					</div>
 				</div>
+				<!-- Resize handles -->
+				<div class="resize-handle resize-handle-top" data-direction="top"></div>
+				<div class="resize-handle resize-handle-bottom" data-direction="bottom"></div>
+				<div class="resize-handle resize-handle-left" data-direction="left"></div>
+				<div class="resize-handle resize-handle-right" data-direction="right"></div>
+				<div class="resize-handle resize-handle-top-left" data-direction="top-left"></div>
+				<div class="resize-handle resize-handle-top-right" data-direction="top-right"></div>
+				<div class="resize-handle resize-handle-bottom-left" data-direction="bottom-left"></div>
+				<div class="resize-handle resize-handle-bottom-right" data-direction="bottom-right"></div>
 			</div>
 		`).appendTo(this.body);
 
@@ -1517,6 +1526,9 @@ frappe.views.Workspace = class Workspace {
 
 		// Make window draggable
 		this.make_window_draggable($window);
+
+		// Make window resizable
+		this.make_window_resizable($window);
 
 		// Add window control handlers with smooth transitions
 		$window.find(".btn-window-close").on("click", () => {
@@ -1633,6 +1645,94 @@ frappe.views.Workspace = class Workspace {
 
 		// Store handlers on window for cleanup if needed
 		$window.data("drag-handlers", { move: windowMoveHandler, up: windowUpHandler });
+	}
+
+	make_window_resizable($window) {
+		const resizeState = {
+			isResizing: false,
+			direction: null,
+			startX: 0,
+			startY: 0,
+			startWidth: 0,
+			startHeight: 0,
+			startLeft: 0,
+			startTop: 0
+		};
+
+		const self = this;
+		const MIN_WIDTH = 300;
+		const MIN_HEIGHT = 200;
+
+		const $handles = $window.find(".resize-handle");
+
+		$handles.on("mousedown", (e) => {
+			resizeState.isResizing = true;
+			resizeState.direction = $(e.currentTarget).data("direction");
+			resizeState.startX = e.clientX;
+			resizeState.startY = e.clientY;
+			resizeState.startWidth = $window.width();
+			resizeState.startHeight = $window.height();
+			resizeState.startLeft = $window.offset().left;
+			resizeState.startTop = $window.offset().top;
+
+			$window.addClass("resizing");
+
+			// Bring to front during resize
+			self.window_z_index += 1;
+			$window.css("z-index", self.window_z_index);
+
+			e.preventDefault();
+		});
+
+		const windowResizeHandler = (e) => {
+			if (!resizeState.isResizing) return;
+
+			const deltaX = e.clientX - resizeState.startX;
+			const deltaY = e.clientY - resizeState.startY;
+			const direction = resizeState.direction;
+
+			let newWidth = resizeState.startWidth;
+			let newHeight = resizeState.startHeight;
+			let newLeft = resizeState.startLeft;
+			let newTop = resizeState.startTop;
+
+			// Handle width and horizontal position
+			if (direction.includes("right")) {
+				newWidth = Math.max(MIN_WIDTH, resizeState.startWidth + deltaX);
+			} else if (direction.includes("left")) {
+				newWidth = Math.max(MIN_WIDTH, resizeState.startWidth - deltaX);
+				newLeft = resizeState.startLeft + deltaX;
+			}
+
+			// Handle height and vertical position
+			if (direction.includes("bottom")) {
+				newHeight = Math.max(MIN_HEIGHT, resizeState.startHeight + deltaY);
+			} else if (direction.includes("top")) {
+				newHeight = Math.max(MIN_HEIGHT, resizeState.startHeight - deltaY);
+				newTop = resizeState.startTop + deltaY;
+			}
+
+			// Apply new dimensions
+			$window.css({
+				width: newWidth + "px",
+				height: newHeight + "px",
+				left: newLeft + "px",
+				top: newTop + "px"
+			});
+		};
+
+		const windowResizeUpHandler = () => {
+			if (resizeState.isResizing) {
+				resizeState.isResizing = false;
+				$window.removeClass("resizing");
+			}
+		};
+
+		$(window).on("mousemove", windowResizeHandler);
+		$(window).on("mouseup", windowResizeUpHandler);
+
+		// Store handlers on window for cleanup if needed
+		$window.data("resize-handlers", { move: windowResizeHandler, up: windowResizeUpHandler });
 	}
 
 	load_workspace_content(page, $window) {
