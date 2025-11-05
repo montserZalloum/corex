@@ -1,5 +1,6 @@
 import EditorJS from "@editorjs/editorjs";
 import Undo from "editorjs-undo";
+import "./workspace.css";
 
 frappe.standard_pages["Workspaces"] = function () {
 	var wrapper = frappe.container.add_page("Workspaces");
@@ -228,10 +229,19 @@ frappe.views.Workspace = class Workspace {
 			sidebar_section.addClass("hidden");
 		}
 
-		$(".item-anchor").on("click", () => {
+		$(".item-anchor").on("click", (e) => {
+			e.preventDefault();
+			// Close sidebar
 			$(".list-sidebar.hidden-xs.hidden-sm").removeClass("opened");
 			$(".close-sidebar").css("display", "none");
 			$("body").css("overflow", "auto");
+
+			// Open workspace in a window instead of navigating
+			const $anchor = $(e.currentTarget);
+			const page_title = $anchor.attr("title");
+			const is_public = $anchor.closest(".sidebar-item-container").attr("item-public") === "1";
+
+			this.open_workspace_window({ name: page_title, public: is_public });
 		});
 
 		if (
@@ -420,38 +430,10 @@ frappe.views.Workspace = class Workspace {
 	}
 
 	async show_page(page) {
-		if (!this.body.find("#editorjs")[0]) {
-			$(`
-				<div id="editorjs" class="desk-page page-main-content"></div>
-			`).appendTo(this.body.find(".editor-js-container"));
-		}
-
-		if (this.all_pages.length) {
-			this.create_page_skeleton();
-
-			let pages =
-				page.public && this.public_pages.length ? this.public_pages : this.private_pages;
-			let current_page = pages.filter((p) => p.title == page.name)[0];
-			this._page = current_page;
-			this.content = current_page && JSON.parse(current_page.content);
-
-			this.content && this.add_custom_cards_in_content();
-
-			$(".item-anchor").addClass("disable-click");
-
-			if (this.pages && this.pages[current_page.name]) {
-				this.page_data = this.pages[current_page.name];
-			} else {
-				await frappe.after_ajax(() => this.get_data(current_page));
-			}
-
-			this.setup_actions(page);
-
-			this.prepare_editorjs();
-			$(".item-anchor").removeClass("disable-click");
-
-			this.remove_page_skeleton();
-		}
+		// Desktop mode: Don't render page content, just setup for window system
+		// Users will click workspace icons to open windows instead
+		this.setup_actions(page);
+		return;
 	}
 
 	add_custom_cards_in_content() {
@@ -1481,6 +1463,184 @@ frappe.views.Workspace = class Workspace {
 				blocks: blocks || [],
 			},
 			tools: this.tools,
+			autofocus: false,
+			readOnly: true,
+			logLevel: "ERROR",
+		});
+	}
+
+	open_workspace_window(page) {
+		// Create a unique window ID for this workspace
+		const window_id = `workspace-window-${frappe.router.slug(page.name)}-${Date.now()}`;
+
+		// Create window container
+		const $window = $(`
+			<div class="workspace-window" id="${window_id}" data-page-name="${page.name}" data-page-public="${page.public}">
+				<div class="window-titlebar">
+					<span class="window-title">${page.name}</span>
+					<div class="window-controls">
+						<button class="btn-window-minimize" title="Minimize">_</button>
+						<button class="btn-window-maximize" title="Maximize">□</button>
+						<button class="btn-window-close" title="Close">×</button>
+					</div>
+				</div>
+				<div class="window-content">
+					<div class="window-loader" style="text-align: center; padding: 20px;">
+						<p>Loading ${page.name}...</p>
+					</div>
+				</div>
+			</div>
+		`).appendTo(this.body);
+
+		// Make window draggable
+		this.make_window_draggable($window);
+
+		// Add window control handlers
+		$window.find(".btn-window-close").on("click", () => {
+			$window.remove();
+		});
+
+		$window.find(".btn-window-minimize").on("click", () => {
+			$window.find(".window-content").toggleClass("minimized");
+		});
+
+		$window.find(".btn-window-maximize").on("click", () => {
+			$window.toggleClass("maximized");
+		});
+
+		// Load workspace content
+		this.load_workspace_content(page, $window);
+
+		return $window;
+	}
+
+	make_window_draggable($window) {
+		let isDown = false;
+		let offset = [0, 0];
+
+		$window.find(".window-titlebar").on("mousedown", (e) => {
+			isDown = true;
+			offset = [
+				$window.offset().left - e.clientX,
+				$window.offset().top - e.clientY
+			];
+		});
+
+		$(document).on("mousemove", (e) => {
+			if (isDown) {
+				$window.css({
+					left: (e.clientX + offset[0]) + "px",
+					top: (e.clientY + offset[1]) + "px"
+				});
+			}
+		});
+
+		$(document).on("mouseup", () => {
+			isDown = false;
+		});
+	}
+
+	load_workspace_content(page, $window) {
+		let pages = page.public ? this.public_pages : this.private_pages;
+		let current_page = pages.filter((p) => p.title == page.name)[0];
+		this._page = current_page;
+		this.content = current_page && JSON.parse(current_page.content);
+
+		if (this.content) {
+			this.add_custom_cards_in_content();
+		}
+
+		// Get data if not cached
+		if (this.pages && this.pages[current_page.name]) {
+			this.page_data = this.pages[current_page.name];
+			this.render_window_content(page, $window);
+		} else {
+			frappe.after_ajax(() => this.get_data(current_page)).then(() => {
+				this.render_window_content(page, $window);
+			});
+		}
+	}
+
+	render_window_content(page, $window) {
+		const $content = $window.find(".window-content");
+		$content.empty();
+
+		// Create editor JS container for this window
+		const editor_id = `window-editor-${frappe.router.slug(page.name)}-${Date.now()}`;
+		$content.html(`<div id="${editor_id}" class="desk-page page-main-content" style="padding: 15px;"></div>`);
+
+		// Initialize editor for this window
+		this.initialize_window_editor(editor_id, this.content);
+	}
+
+	initialize_window_editor(editor_id, blocks) {
+		const tools = {
+			header: {
+				class: this.blocks["header"],
+				inlineToolbar: ["HeaderSize", "bold", "italic", "link"],
+				config: {
+					default_size: 4,
+				},
+			},
+			paragraph: {
+				class: this.blocks["paragraph"],
+				inlineToolbar: ["HeaderSize", "bold", "italic", "link"],
+				config: {
+					placeholder: __("Choose a block or continue typing"),
+				},
+			},
+			chart: {
+				class: this.blocks["chart"],
+				config: {
+					page_data: this.page_data || [],
+				},
+			},
+			card: {
+				class: this.blocks["card"],
+				config: {
+					page_data: this.page_data || [],
+				},
+			},
+			shortcut: {
+				class: this.blocks["shortcut"],
+				config: {
+					page_data: this.page_data || [],
+				},
+			},
+			onboarding: {
+				class: this.blocks["onboarding"],
+				config: {
+					page_data: this.page_data || [],
+				},
+			},
+			quick_list: {
+				class: this.blocks["quick_list"],
+				config: {
+					page_data: this.page_data || [],
+				},
+			},
+			number_card: {
+				class: this.blocks["number_card"],
+				config: {
+					page_data: this.page_data || [],
+				},
+			},
+			custom_block: {
+				class: this.blocks["custom_block"],
+				config: {
+					page_data: this.page_data || [],
+				},
+			},
+			spacer: this.blocks["spacer"],
+			HeaderSize: frappe.workspace_block.tunes["header_size"],
+		};
+
+		const editor = new EditorJS({
+			holder: editor_id,
+			data: {
+				blocks: blocks || [],
+			},
+			tools: tools,
 			autofocus: false,
 			readOnly: true,
 			logLevel: "ERROR",
