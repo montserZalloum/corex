@@ -1,6 +1,5 @@
 import EditorJS from "@editorjs/editorjs";
 import Undo from "editorjs-undo";
-import "./workspace.css";
 
 frappe.standard_pages["Workspaces"] = function () {
 	var wrapper = frappe.container.add_page("Workspaces");
@@ -50,6 +49,7 @@ frappe.views.Workspace = class Workspace {
 			"light-blue",
 		];
 		this.active_workspace_window = null; // Track which window is active for routing
+		this.window_z_index = 1000; // Track z-index for stacking windows
 
 		this.prepare_container();
 		this.setup_pages();
@@ -1475,9 +1475,13 @@ frappe.views.Workspace = class Workspace {
 		// Create a unique window ID for this workspace
 		const window_id = `workspace-window-${frappe.router.slug(page.name)}-${Date.now()}`;
 
+		// Increment z-index for new windows (always on top)
+		this.window_z_index += 1;
+		const current_z_index = this.window_z_index;
+
 		// Create window container with inner content area
 		const $window = $(`
-			<div class="workspace-window" id="${window_id}" data-page-name="${page.name}" data-page-public="${page.public}">
+			<div class="workspace-window" id="${window_id}" data-page-name="${page.name}" data-page-public="${page.public}" style="z-index: ${current_z_index};">
 				<div class="window-titlebar">
 					<div class="window-breadcrumb">
 						<span class="window-title">${page.name}</span>
@@ -1498,31 +1502,67 @@ frappe.views.Workspace = class Workspace {
 			</div>
 		`).appendTo(this.body);
 
-		// Store window reference
+		// Store window reference and z-index
 		$window.data("workspace-instance", this);
 		$window.data("workspace-page", page);
+		$window.data("base-z-index", current_z_index);
 
-		// Set this as the active window when clicking inside
-		$window.on("mousedown", () => {
-			this.active_workspace_window = $window;
+		// Set this as the active window only when clicking inside content (not dragging)
+		$window.find(".window-content").on("mousedown", (e) => {
+			// Only set active if we're not dragging a window
+			if (!$window.data("is-dragging")) {
+				this.active_workspace_window = $window;
+			}
 		});
 
 		// Make window draggable
 		this.make_window_draggable($window);
 
-		// Add window control handlers
+		// Add window control handlers with smooth transitions
 		$window.find(".btn-window-close").on("click", () => {
 			// Remove all pages created for this window
 			this.cleanup_window_pages($window);
-			$window.remove();
+			$window.fadeOut(200, function() {
+				$(this).remove();
+			});
 		});
 
 		$window.find(".btn-window-minimize").on("click", () => {
-			$window.find(".window-content").toggleClass("minimized");
+			const $content = $window.find(".window-content");
+			const isMinimized = $content.hasClass("minimized");
+
+			if (isMinimized) {
+				$content.slideDown(200).removeClass("minimized");
+			} else {
+				$content.slideUp(200).addClass("minimized");
+			}
 		});
 
 		$window.find(".btn-window-maximize").on("click", () => {
-			$window.toggleClass("maximized");
+			const isMaximized = $window.hasClass("maximized");
+
+			if (isMaximized) {
+				// Restore to previous size
+				const savedPos = $window.data("saved-position");
+				if (savedPos) {
+					$window.css({
+						left: savedPos.left + "px",
+						top: savedPos.top + "px",
+						width: savedPos.width + "px",
+						height: savedPos.height + "px"
+					});
+				}
+				$window.removeClass("maximized");
+			} else {
+				// Save current position and maximize
+				$window.data("saved-position", {
+					left: $window.position().left,
+					top: $window.position().top,
+					width: $window.width(),
+					height: $window.height()
+				});
+				$window.addClass("maximized");
+			}
 		});
 
 		$window.find(".btn-window-back").on("click", () => {
@@ -1536,29 +1576,63 @@ frappe.views.Workspace = class Workspace {
 	}
 
 	make_window_draggable($window) {
-		let isDown = false;
-		let offset = [0, 0];
+		const dragState = {
+			isDown: false,
+			offset: [0, 0]
+		};
+		const $titlebar = $window.find(".window-titlebar");
+		const self = this;
 
-		$window.find(".window-titlebar").on("mousedown", (e) => {
-			isDown = true;
-			offset = [
+		$titlebar.on("mousedown", (e) => {
+			// Don't drag if clicking on a button
+			if ($(e.target).closest("button").length) return;
+
+			dragState.isDown = true;
+			$window.addClass("dragging");
+			$window.data("is-dragging", true); // Flag to prevent routing during drag
+			dragState.offset = [
 				$window.offset().left - e.clientX,
 				$window.offset().top - e.clientY
 			];
+
+			// Bring to front by incrementing z-index
+			self.window_z_index += 1;
+			$window.css("z-index", self.window_z_index);
+
+			// Prevent any selection or default behavior during drag
+			e.preventDefault();
 		});
 
-		$(document).on("mousemove", (e) => {
-			if (isDown) {
+		const windowMoveHandler = (e) => {
+			if (dragState.isDown) {
+				const newLeft = e.clientX + dragState.offset[0];
+				const newTop = e.clientY + dragState.offset[1];
+
+				// Constrain to viewport with some margin
+				const maxLeft = $(window).width() - $window.outerWidth() + 100;
+				const maxTop = $(window).height() - $window.outerHeight() + 100;
+
 				$window.css({
-					left: (e.clientX + offset[0]) + "px",
-					top: (e.clientY + offset[1]) + "px"
+					left: Math.max(-100, Math.min(newLeft, maxLeft)) + "px",
+					top: Math.max(0, Math.min(newTop, maxTop)) + "px"
 				});
 			}
-		});
+		};
 
-		$(document).on("mouseup", () => {
-			isDown = false;
-		});
+		const windowUpHandler = () => {
+			if (dragState.isDown) {
+				dragState.isDown = false;
+				$window.removeClass("dragging");
+				$window.data("is-dragging", false); // Clear drag flag
+			}
+		};
+
+		// Use window level events, not document
+		$(window).on("mousemove", windowMoveHandler);
+		$(window).on("mouseup", windowUpHandler);
+
+		// Store handlers on window for cleanup if needed
+		$window.data("drag-handlers", { move: windowMoveHandler, up: windowUpHandler });
 	}
 
 	load_workspace_content(page, $window) {
@@ -1596,11 +1670,16 @@ frappe.views.Workspace = class Workspace {
 		// Store editor reference for this window
 		$window.data("workspace-editor", this.editor);
 
-		// Setup routing interception for this window
-		this.setup_window_routing($window);
+		// Setup routing interception only once
+		if (!frappe.views.Container.prototype._workspace_routing_setup) {
+			this.setup_window_routing();
+		}
 	}
 
-	setup_window_routing($window) {
+	setup_window_routing() {
+		// Mark as setup
+		frappe.views.Container.prototype._workspace_routing_setup = true;
+
 		// Store original container change_to method
 		if (!frappe.views.Container.prototype._original_change_to) {
 			frappe.views.Container.prototype._original_change_to = frappe.views.Container.prototype.change_to;
@@ -1611,15 +1690,21 @@ frappe.views.Workspace = class Workspace {
 		frappe.views.Container.prototype.change_to = function(label) {
 			// Check if there's an active workspace window
 			if (self.active_workspace_window && self.active_workspace_window.is(":visible")) {
-				// Route to window instead of main container
-				return self.change_page_in_window(self.active_workspace_window, label);
+				// Prevent normal page change and show in window instead
+				return self.show_page_in_window(self.active_workspace_window, label);
 			}
 			// Otherwise use original behavior
 			return self._original_change_to.call(this, label);
 		};
 	}
 
-	change_page_in_window($window, label) {
+	show_page_in_window($window, label) {
+		// Don't route during drag operations
+		if ($window.data("is-dragging")) {
+			return;
+		}
+
+		// Get the page element
 		let page;
 		if (label.tagName) {
 			page = label;
@@ -1633,17 +1718,23 @@ frappe.views.Workspace = class Workspace {
 		}
 
 		const $content = $window.find(".window-content");
+		const $page = $(page);
 
 		// Hide the workspace content
 		$content.find(".desk-page").hide();
 
-		// Append page to window if not already there
-		if (!page.parentElement || !page.parentElement.classList.contains("window-content")) {
-			$content.append(page);
-		}
+		// Hide all previously shown pages in this window
+		$content.find(".window-page-view").remove();
 
-		// Show the page
-		$(page).show();
+		// Create a wrapper for the page content (don't move the actual page)
+		// This avoids DOM hierarchy issues
+		const $pageWrapper = $(`<div class="window-page-view" style="width: 100%; height: 100%; overflow: auto;"></div>`);
+
+		// Clone the page content for display in the window
+		// This keeps the original page in Frappe's container
+		const $pageClone = $page.clone(true, true);
+		$pageWrapper.append($pageClone);
+		$content.append($pageWrapper);
 
 		// Update breadcrumb
 		this.update_window_breadcrumb($window, label);
@@ -1654,6 +1745,8 @@ frappe.views.Workspace = class Workspace {
 		// Store current page in window
 		$window.data("current-page", page);
 		$window.data("workspace-active-page", label);
+
+		return page;
 	}
 
 	update_window_breadcrumb($window, page_label) {
@@ -1667,8 +1760,8 @@ frappe.views.Workspace = class Workspace {
 	show_workspace_content_in_window($window) {
 		const $content = $window.find(".window-content");
 
-		// Hide any open pages
-		$content.find(".page-container").hide();
+		// Remove any cloned page views
+		$content.find(".window-page-view").remove();
 
 		// Show workspace content
 		$content.find(".desk-page").show();
@@ -1686,17 +1779,18 @@ frappe.views.Workspace = class Workspace {
 
 	cleanup_window_pages($window) {
 		const $content = $window.find(".window-content");
-		// Remove any page containers that were added to this window
-		$content.find(".page-container").each((i, el) => {
-			const label = el.getAttribute("id")?.replace("page-", "");
-			if (label && frappe.pages[label]) {
-				// Remove from frappe.pages if it was temporarily added
-				// Keep it for now as it might be reused
-			}
-		});
+		// Remove any cloned page views in this window
+		$content.find(".window-page-view").remove();
 	}
 
 	initialize_window_editor(editor_id, blocks) {
+		// Check if element exists, if not wait a bit
+		if (!document.getElementById(editor_id)) {
+			// Element not found, retry after a short delay
+			setTimeout(() => this.initialize_window_editor(editor_id, blocks), 50);
+			return;
+		}
+
 		const tools = {
 			header: {
 				class: this.blocks["header"],
@@ -1758,16 +1852,20 @@ frappe.views.Workspace = class Workspace {
 			HeaderSize: frappe.workspace_block.tunes["header_size"],
 		};
 
-		const editor = new EditorJS({
-			holder: editor_id,
-			data: {
-				blocks: blocks || [],
-			},
-			tools: tools,
-			autofocus: false,
-			readOnly: true,
-			logLevel: "ERROR",
-		});
+		try {
+			const editor = new EditorJS({
+				holder: editor_id,
+				data: {
+					blocks: blocks || [],
+				},
+				tools: tools,
+				autofocus: false,
+				readOnly: true,
+				logLevel: "ERROR",
+			});
+		} catch (error) {
+			console.error("Error initializing editor:", error);
+		}
 	}
 
 	save_page(page) {
