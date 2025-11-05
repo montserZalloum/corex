@@ -1685,8 +1685,17 @@ frappe.views.Workspace = class Workspace {
 			frappe.views.Container.prototype._original_change_to = frappe.views.Container.prototype.change_to;
 		}
 
-		// Override change_to to handle window routing
+		// Store original body selector getter
 		const self = this;
+		if (!Object.getOwnPropertyDescriptor(frappe.container, '_original_body_getter')) {
+			const original_body = frappe.container.page_body;
+			Object.defineProperty(frappe.container, '_original_body_getter', {
+				value: () => original_body,
+				writable: false
+			});
+		}
+
+		// Override change_to to handle window routing
 		frappe.views.Container.prototype.change_to = function(label) {
 			// Check if there's an active workspace window
 			if (self.active_workspace_window && self.active_workspace_window.is(":visible")) {
@@ -1696,6 +1705,31 @@ frappe.views.Workspace = class Workspace {
 			// Otherwise use original behavior
 			return self._original_change_to.call(this, label);
 		};
+
+		// Override jQuery #body selector for window context
+		if (!jQuery.fn._original_html) {
+			jQuery.fn._original_html = jQuery.fn.html;
+			jQuery.fn._original_append = jQuery.fn.append;
+			jQuery.fn._original_prepend = jQuery.fn.prepend;
+		}
+
+		// Intercept append/prepend on #body to redirect to active window
+		const windowContextWrapper = (originalMethod) => {
+			return function(...args) {
+				// Check if this is #body and we have an active window
+				if (this.is('#body') && self.active_workspace_window && self.active_workspace_window.is(":visible")) {
+					const $windowContent = self.active_workspace_window.find('.window-content');
+					// If appending content page-container, append to window content instead
+					if (args[0] && (args[0].includes && args[0].includes('content page-container') || (typeof args[0] === 'object' && $(args[0]).hasClass('content page-container')))) {
+						return originalMethod.call($windowContent, ...args);
+					}
+				}
+				return originalMethod.call(this, ...args);
+			};
+		};
+
+		jQuery.fn.append = windowContextWrapper(jQuery.fn._original_append);
+		jQuery.fn.prepend = windowContextWrapper(jQuery.fn._original_prepend);
 	}
 
 	show_page_in_window($window, label) {
@@ -1730,10 +1764,9 @@ frappe.views.Workspace = class Workspace {
 		// This avoids DOM hierarchy issues
 		const $pageWrapper = $(`<div class="window-page-view" style="width: 100%; height: 100%; overflow: auto;"></div>`);
 
-		// Clone the page content for display in the window
-		// This keeps the original page in Frappe's container
-		const $pageClone = $page.clone(true, true);
-		$pageWrapper.append($pageClone);
+		// Move the actual page element to the window (not cloning)
+		// This ensures all event handlers and Frappe functionality works
+		$pageWrapper.append($page);
 		$content.append($pageWrapper);
 
 		// Update breadcrumb
@@ -1760,8 +1793,18 @@ frappe.views.Workspace = class Workspace {
 	show_workspace_content_in_window($window) {
 		const $content = $window.find(".window-content");
 
-		// Remove any cloned page views
-		$content.find(".window-page-view").remove();
+		// Get the page view wrapper if it exists
+		const $pageView = $content.find(".window-page-view");
+		if ($pageView.length) {
+			// Extract and restore page to frappe container if it was moved
+			const $page = $pageView.find("[data-doctype]").closest(".frappe-control, .page-content, .page-head");
+			if ($page.length) {
+				// Move page back to frappe container
+				$("#frappe-container").append($page);
+			}
+			// Remove the wrapper
+			$pageView.remove();
+		}
 
 		// Show workspace content
 		$content.find(".desk-page").show();
