@@ -200,3 +200,8 @@ body.full-width .container {
 			}
 		}
 }
+.main-section {
+	.sticky-top {
+		z-index: 20;
+	}
+}
