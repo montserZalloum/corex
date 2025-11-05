@@ -31,7 +31,7 @@ frappe.views.Container = class Container {
 		var page = $('<div class="content page-container"></div>')
 			.attr("id", "page-" + label)
 			.attr("data-page-route", label)
-			.hide()
+			// .hide()
 			.appendTo(this.container)
 			.get(0);
 		page.label = label;
