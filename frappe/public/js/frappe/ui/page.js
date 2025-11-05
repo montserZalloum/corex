@@ -82,12 +82,20 @@ frappe.ui.Page = class Page {
 
 	add_main_section() {
 		$(frappe.render_template("page", {})).appendTo(this.wrapper);
+		let mainWrapperLeftSideClasses = 'col-md-2';
+		let mainWrapperRightSideClasses = 'col-md-10';
+		let MainWrapperClasses = '';
+		if (!document.querySelector('.layout-main-section-wrapper')) {
+			mainWrapperLeftSideClasses = 'col-md-12';
+			mainWrapperRightSideClasses = 'col-md-12';
+			MainWrapperClasses = 'cx-ROOT-layout';
+		}
 		if (this.single_column) {
 			// nesting under col-sm-12 for consistency
 			this.add_view(
 				"main",
-				'<div class="row layout-main">\
-					<div class="col-md-12 layout-main-section-wrapper">\
+				'<div class="row '+MainWrapperClasses+' layout-main cx-layout-main-single-column">\
+					<div class="col-md-12 '+mainWrapperRightSideClasses+' layout-main-section-wrapper">\
 						<div class="layout-main-section"></div>\
 						<div class="layout-footer hide"></div>\
 					</div>\
@@ -97,8 +105,8 @@ frappe.ui.Page = class Page {
 			this.add_view(
 				"main",
 				`
-				<div class="row layout-main">
-					<div class="col-lg-12 layout-side-section"></div>
+				<div class="row layout-main ${MainWrapperClasses} cx-layout-main-multiple-column">
+					<div class="${mainWrapperLeftSideClasses} layout-side-section"></div>
 					<div class="col layout-main-section-wrapper cx-layout-wrapper">
 						<div class="layout-main-section"></div>
 						<div class="layout-footer hide"></div>
