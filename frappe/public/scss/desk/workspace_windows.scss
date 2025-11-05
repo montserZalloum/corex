@@ -234,6 +234,11 @@ $shadow-heavy: 0 8px 24px rgba(0, 0, 0, 0.2);
 		min-height: 100%;
 	}
 }
+.window-page-view {
+	.page-head {
+		top: 0;
+	}
+}
 
 .window-content .codex-editor {
 	background: transparent;
