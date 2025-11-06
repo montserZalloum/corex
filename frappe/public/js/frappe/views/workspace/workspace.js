@@ -1488,7 +1488,7 @@ frappe.views.Workspace = class Workspace {
 						<span class="breadcrumb-trail" style="display: none;"></span>
 					</div>
 					<div class="window-controls">
-						<button class="btn-window-back hidden" title="Back" style="display: none;">←</button>
+						<button class="btn-window-back" title="Back" style="display: none;">←</button>
 						<button class="btn-window-minimize" title="Minimize">_</button>
 						<button class="btn-window-maximize" title="Maximize">□</button>
 						<button class="btn-window-close" title="Close">×</button>
