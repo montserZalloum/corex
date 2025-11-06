@@ -1842,7 +1842,7 @@ frappe.views.Workspace = class Workspace {
 				return self.show_page_in_window(self.active_workspace_window, label);
 			}
 			// Otherwise use original behavior
-			return self._original_change_to.call(this, label);
+			return frappe.views.Container.prototype._original_change_to.call(this, label);
 		};
 
 		// Override jQuery #body selector for window context
