@@ -1515,17 +1515,19 @@ frappe.views.Workspace = class Workspace {
 		$window.data("workspace-instance", this);
 		$window.data("workspace-page", page);
 		$window.data("base-z-index", current_z_index);
+		$window.attr("data-workspace-name", page.name); // For debugging
 
-		// Initialize route history for back button navigation
-		$window.attr("data-routes-history", "[]");
-
-		// Set this as the active window only when clicking inside content (not dragging)
+		// Initialize simple route history stack for this window
+		$window.data("route-stack", []);
+		
+		// Set this as the active window when clicking inside content
 		$window.find(".window-content").on("mousedown", (e) => {
 			// Only set active if we're not dragging a window
 			if (!$window.data("is-dragging")) {
 				this.active_workspace_window = $window;
 			}
 		});
+		
 
 		// Make window draggable
 		this.make_window_draggable($window);
@@ -1798,41 +1800,8 @@ frappe.views.Workspace = class Workspace {
 			});
 		}
 
-		// Hook into router to capture routes before navigation
-		// Store original push_state method
-		if (!frappe.router._original_push_state) {
-			frappe.router._original_push_state = frappe.router.push_state.bind(frappe.router);
-		}
-
-		// Wrap push_state to capture current route before URL changes
-		frappe.router.push_state = function(url) {
-			// Check if there's an active workspace window
-			if (self.active_workspace_window && self.active_workspace_window.is(":visible")) {
-				// Check if we're navigating back (skip saving in this case)
-				if (self.active_workspace_window.data("navigating-back")) {
-					// Clear the flag and skip saving
-					self.active_workspace_window.data("navigating-back", false);
-					console.log("Navigating back - skipping route save");
-				} else {
-					// Capture CURRENT URL before it changes (without query parameters)
-					const currentUrl = window.location.href.split(window.location.origin)[1].split('?')[0];
-
-					// Get window's route history
-					let history = JSON.parse(self.active_workspace_window.attr("data-routes-history") || "[]");
-
-					// Only add if different from last saved route
-					if (history.length === 0 || history[history.length - 1] !== currentUrl) {
-						history.push(currentUrl);
-						self.active_workspace_window.attr("data-routes-history", JSON.stringify(history));
-						console.log("Route saved:", currentUrl);
-						console.log("History:", history);
-					}
-				}
-			}
-
-			// Call original method (this will change the URL)
-			return frappe.router._original_push_state(url);
-		};
+		// Simple router hook - just let navigation happen normally
+		// The click handler already saved the route to the window's stack
 
 		// Override change_to to handle window routing
 		frappe.views.Container.prototype.change_to = function(label) {
@@ -1907,6 +1876,19 @@ frappe.views.Workspace = class Workspace {
 			return;
 		}
 
+		// Push current route to this window's stack before navigating
+		const workspaceName = $window.attr("data-workspace-name");
+		const routeStack = $window.data("route-stack");
+		const currentRoute = window.location.pathname;
+
+		// Only push if different from last route
+		if (routeStack.length === 0 || routeStack[routeStack.length - 1] !== currentRoute) {
+			routeStack.push(currentRoute);
+			$window.data("route-stack", routeStack);
+			console.log(`[${workspaceName}] Pushed to stack: ${currentRoute}`);
+			console.log(`[${workspaceName}] Stack:`, routeStack);
+		}
+
 		// Hide the workspace content
 		$content.find(".desk-page").hide();
 
@@ -1925,7 +1907,7 @@ frappe.views.Workspace = class Workspace {
 		// Update breadcrumb
 		this.update_window_breadcrumb($window, label);
 
-		// Show back button
+		// Show back button since we just added to history
 		$window.find(".btn-window-back").show();
 
 		// Store current page in window
@@ -1940,87 +1922,52 @@ frappe.views.Workspace = class Workspace {
 		const page = frappe.pages[page_label];
 		const page_title = page?.label || page_label;
 
-		$breadcrumb.html(` > ${page_title}`);
+		$breadcrumb.html(` > ${page_title}`).show();
 	}
 
 	show_workspace_content_in_window($window) {
 		const $content = $window.find(".window-content");
+		const workspaceName = $window.attr("data-workspace-name");
+		const routeStack = $window.data("route-stack");
 
-		// Get routes history from DOM attribute
-		let routesHistory = JSON.parse($window.attr("data-routes-history") || "[]");
-		console.log("Current routes history:", routesHistory);
+		console.log(`[${workspaceName}] Back button clicked`);
+		console.log(`[${workspaceName}] Current stack:`, routeStack);
 
-		// Check if there's a previous route to go back to
-		if (routesHistory.length > 0) {
-			// Pop the last route from history
-			const previousRoute = routesHistory.pop();
-			// Save updated history back to DOM attribute
-			$window.attr("data-routes-history", JSON.stringify(routesHistory));
-			console.log("Going back to:", previousRoute);
-			console.log("Remaining history:", routesHistory);
+		// IMPORTANT: Set this window as the active window BEFORE navigating
+		// This ensures frappe.set_route() will navigate within THIS window, not another one
+		this.active_workspace_window = $window;
 
-			// Check if going back to the original workspace route
-			const workspacePage = $window.data("workspace-page");
-			const workspaceRoute = workspacePage.public
-				? `/app/${frappe.router.slug(workspacePage.name)}`
-				: `/app/private/${frappe.router.slug(workspacePage.name)}`;
+		// Pop current route from stack
+		if (routeStack.length > 0) {
+			routeStack.pop();  // Remove current
+			$window.data("route-stack", routeStack);
+		}
 
-			if (previousRoute === workspaceRoute) {
-				// Going back to workspace - show workspace content directly
-				console.log("Going back to workspace - showing workspace content");
+		// Get previous route (now at top of stack)
+		const previousRoute = routeStack.length > 0 ? routeStack[routeStack.length - 1] : null;
 
-				// Hide any page views
-				$content.find(".window-page-view").remove();
+		console.log(`[${workspaceName}] Previous route:`, previousRoute);
+		console.log(`[${workspaceName}] Stack after pop:`, routeStack);
 
-				// Show workspace content
-				$content.find(".desk-page").show();
-
-				// Hide back button since we're at workspace level
-				$window.find(".btn-window-back").hide();
-
-				// Clear breadcrumb
-				$window.find(".breadcrumb-trail").html("");
-
-				// Clear stored page
-				$window.data("current-page", null);
-				$window.data("workspace-active-page", null);
-
-				// Update URL without triggering routing
-				window.history.pushState(null, null, workspaceRoute);
-				frappe.router.current_route = workspaceRoute.replace('/app/', '').split('/');
-				return;
-			}
-
-			// Not going back to workspace - navigate to the route normally
-			// Set flag to prevent saving this navigation to history
-			$window.data("navigating-back", true);
-
-			// Navigate to the previous route
-			// Extract route parts from path: '/app/user' → ['user']
-			// Strip query parameters first: '/app/user?enabled=1' → '/app/user' → ['user']
-			const routeParts = previousRoute.split('?')[0].replace('/app/', '').split('/');
+		// Check if we have a previous route
+		if (previousRoute) {
+			// Navigate to previous route (will use THIS window because we set it as active above)
+			const routeParts = previousRoute.replace('/app/', '').split('/').filter(p => p);
+			console.log(`[${workspaceName}] Navigating to:`, routeParts);
 			frappe.set_route(routeParts);
 			return;
 		}
 
-		// No history left, show workspace content
-		// Get the page view wrapper if it exists
-		const $pageView = $content.find(".window-page-view");
-		if ($pageView.length) {
-			// Extract and restore page to frappe container if it was moved
-			const $page = $pageView.find("[data-doctype]").closest(".frappe-control, .page-content, .page-head");
-			if ($page.length) {
-				// Move page back to frappe container
-				$("#frappe-container").append($page);
-			}
-			// Remove the wrapper
-			$pageView.remove();
-		}
+		// No history - show workspace content
+		console.log(`[${workspaceName}] No more history - showing workspace`);
+
+		// Hide any page views
+		$content.find(".window-page-view").remove();
 
 		// Show workspace content
 		$content.find(".desk-page").show();
 
-		// Hide back button since we're at the workspace level
+		// Hide back button
 		$window.find(".btn-window-back").hide();
 
 		// Clear breadcrumb
@@ -2030,17 +1977,13 @@ frappe.views.Workspace = class Workspace {
 		$window.data("current-page", null);
 		$window.data("workspace-active-page", null);
 
-		// Update the URL to match the workspace without triggering navigation
+		// Navigate to workspace route
 		const workspacePage = $window.data("workspace-page");
 		if (workspacePage) {
-			const workspace_route = workspacePage.public
-				? `/app/${frappe.router.slug(workspacePage.name)}`
-				: `/app/private/${frappe.router.slug(workspacePage.name)}`;
-
-			// Update URL without triggering any routing/navigation
-			window.history.pushState(null, null, workspace_route);
-			// Update Frappe's internal route tracking
-			frappe.router.current_route = workspace_route.replace('/app/', '').split('/');
+			const workspaceRouteParts = workspacePage.public
+				? [frappe.router.slug(workspacePage.name)]
+				: ['private', frappe.router.slug(workspacePage.name)];
+			frappe.set_route(workspaceRouteParts);
 		}
 	}
 
