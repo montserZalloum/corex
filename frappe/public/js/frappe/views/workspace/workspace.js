@@ -1814,8 +1814,8 @@ frappe.views.Workspace = class Workspace {
 					self.active_workspace_window.data("navigating-back", false);
 					console.log("Navigating back - skipping route save");
 				} else {
-					// Capture CURRENT URL before it changes
-					const currentUrl = window.location.href.split(window.location.origin)[1];
+					// Capture CURRENT URL before it changes (without query parameters)
+					const currentUrl = window.location.href.split(window.location.origin)[1].split('?')[0];
 
 					// Get window's route history
 					let history = JSON.parse(self.active_workspace_window.attr("data-routes-history") || "[]");
@@ -1997,7 +1997,8 @@ frappe.views.Workspace = class Workspace {
 
 			// Navigate to the previous route
 			// Extract route parts from path: '/app/user' → ['user']
-			const routeParts = previousRoute.replace('/app/', '').split('/');
+			// Strip query parameters first: '/app/user?enabled=1' → '/app/user' → ['user']
+			const routeParts = previousRoute.split('?')[0].replace('/app/', '').split('/');
 			frappe.set_route(routeParts);
 			return;
 		}
