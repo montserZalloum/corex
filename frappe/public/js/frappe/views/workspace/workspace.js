@@ -1,6 +1,109 @@
 import EditorJS from "@editorjs/editorjs";
 import Undo from "editorjs-undo";
 
+// Global Deep Link Handler - Initialize before workspace constructor
+// This ensures deep links work even on page refresh
+frappe.provide("frappe.workspace_deep_link");
+
+frappe.workspace_deep_link = {
+	workspace_instance: null,
+
+	init() {
+		console.log("[Deep Link Global] Initializing global deep link handler");
+
+		// Wait for frappe app to be ready
+		// Use jQuery document ready and check for frappe.router
+		$(document).ready(() => {
+			console.log("[Deep Link Global] Document ready");
+
+			// Check if router is available
+			if (frappe.router) {
+				console.log("[Deep Link Global] Router available, setting up hooks");
+				this.setup_router_hooks();
+			} else {
+				// Wait for frappe.app to be ready
+				console.log("[Deep Link Global] Waiting for frappe.app");
+				const checkRouter = setInterval(() => {
+					if (frappe.router) {
+						console.log("[Deep Link Global] Router now available, setting up hooks");
+						clearInterval(checkRouter);
+						this.setup_router_hooks();
+					}
+				}, 100);
+			}
+		});
+	},
+
+	setup_router_hooks() {
+		const self = this;
+
+		// Wrap router.render to intercept deep links
+		if (!frappe.router._deep_link_render_wrapped) {
+			console.log("[Deep Link Global] Wrapping router.render for deep link detection");
+			frappe.router._deep_link_render_wrapped = true;
+			const original_render = frappe.router.render;
+
+			frappe.router.render = function(...args) {
+				console.log("[Deep Link Global] Render called, route:", frappe.router.current_route);
+
+				// Check if workspace instance exists and is ready
+				if (frappe.workspace && frappe.workspace.all_pages && frappe.workspace.all_pages.length > 0) {
+					// Workspace is loaded, use instance method
+					frappe.workspace.handle_deep_link_on_route_change().then((handled) => {
+						console.log("[Deep Link Global] Handled by workspace instance:", handled);
+						original_render.apply(frappe.router, args);
+					});
+					return;
+				}
+
+				// Workspace not loaded yet - check if this is a deep link we should handle
+				const route = frappe.router.current_route;
+				if (route && route.length > 0) {
+					const first_part = route[0];
+					const doctype_views = ["Form", "List", "Report", "Tree", "Kanban", "Calendar", "Gantt", "Dashboard", "Image", "Inbox", "Map"];
+
+					if (doctype_views.includes(first_part)) {
+						const doctype = route[1];
+						console.log(`[Deep Link Global] Detected deep link on page load: ${first_part} for ${doctype}`);
+						console.log("[Deep Link Global] Workspace not loaded yet, will handle after workspace loads");
+
+						// Store the deep link to handle after workspace loads
+						frappe.workspace_deep_link.pending_deep_link = { route, doctype, view: first_part };
+
+						// DON'T render the page in main view - instead navigate to a workspace
+						// This will trigger workspace initialization, which will then handle the pending deep link
+						console.log("[Deep Link Global] Redirecting to a workspace to initialize system");
+
+						// Navigate to first available workspace
+						// This will create the workspace instance
+						setTimeout(() => {
+							// Try to find a workspace to navigate to
+							if (frappe.workspaces && Object.keys(frappe.workspaces).length > 0) {
+								const first_workspace = Object.values(frappe.workspaces)[0];
+								console.log("[Deep Link Global] Navigating to workspace:", first_workspace.title);
+								frappe.set_route("Workspaces", first_workspace.title);
+							} else {
+								// Fallback: try "Home" or any common workspace
+								console.log("[Deep Link Global] Navigating to Home workspace");
+								frappe.set_route("Workspaces", "Home");
+							}
+						}, 100);
+
+						// Skip the default render
+						return;
+					}
+				}
+
+				// Call original render
+				return original_render.apply(frappe.router, args);
+			};
+		}
+	}
+};
+
+// Initialize immediately
+frappe.workspace_deep_link.init();
+
 frappe.standard_pages["Workspaces"] = function () {
 	var wrapper = frappe.container.add_page("Workspaces");
 
@@ -18,6 +121,8 @@ frappe.standard_pages["Workspaces"] = function () {
 
 frappe.views.Workspace = class Workspace {
 	constructor(wrapper) {
+		console.log("[Deep Link] Workspace constructor called");
+
 		this.wrapper = $(wrapper);
 		this.page = wrapper.page;
 		this.blocks = frappe.workspace_block.blocks;
@@ -54,6 +159,9 @@ frappe.views.Workspace = class Workspace {
 		this.prepare_container();
 		this.setup_pages();
 		this.register_awesomebar_shortcut();
+
+		// Setup global deep link routing hook
+		this.setup_deep_link_routing();
 	}
 
 	prepare_container() {
@@ -92,6 +200,28 @@ frappe.views.Workspace = class Workspace {
 				};
 			}
 			this.make_sidebar();
+
+			// Build doctype-to-workspace mapping for deep link handling
+			this.build_doctype_workspace_map();
+
+			// Check if we need to handle a deep link that's already in the URL
+			console.log("[Deep Link] Pages loaded, checking for initial deep link");
+			console.log("[Deep Link] Current route:", frappe.router.current_route);
+
+			// Check if there's a pending deep link from page load
+			if (frappe.workspace_deep_link && frappe.workspace_deep_link.pending_deep_link) {
+				console.log("[Deep Link] Found pending deep link from page load:", frappe.workspace_deep_link.pending_deep_link);
+				const pending = frappe.workspace_deep_link.pending_deep_link;
+
+				// Handle the pending deep link
+				this.handle_pending_deep_link(pending);
+
+				// Clear the pending deep link
+				frappe.workspace_deep_link.pending_deep_link = null;
+			} else {
+				this.handle_deep_link_on_route_change();
+			}
+
 			reload && this.show();
 		}
 	}
@@ -334,6 +464,12 @@ frappe.views.Workspace = class Workspace {
 		if (!frappe.router.current_route[0]) {
 			frappe.route_flags.replace_route = true;
 			frappe.set_route(frappe.router.slug(page.public ? page.name : "private/" + page.name));
+			return;
+		}
+
+		// Handle deep links - check if current route is a doctype route (not a workspace route)
+		if (this.handle_deep_link()) {
+			// Deep link was handled, don't show workspace page
 			return;
 		}
 
@@ -1805,12 +1941,17 @@ frappe.views.Workspace = class Workspace {
 
 		// Override change_to to handle window routing
 		frappe.views.Container.prototype.change_to = function(label) {
+			console.log(`[Deep Link] Container.change_to called with label: ${label}`);
+			console.log(`[Deep Link] Active window exists:`, !!self.active_workspace_window);
+
 			// Check if there's an active workspace window
 			if (self.active_workspace_window && self.active_workspace_window.is(":visible")) {
+				console.log(`[Deep Link] Showing page in window instead of main view`);
 				// Prevent normal page change and show in window instead
 				return self.show_page_in_window(self.active_workspace_window, label);
 			}
 			// Otherwise use original behavior
+			console.log(`[Deep Link] No active window, using original change_to`);
 			return frappe.views.Container.prototype._original_change_to.call(this, label);
 		};
 
@@ -2191,4 +2332,359 @@ frappe.views.Workspace = class Workspace {
 			frappe.ui.keys.add_shortcut({ shortcut: `shift+${letter}`, ...default_shortcut });
 		});
 	}
+
+	// Deep Link Handling System
+	// ========================
+
+	setup_deep_link_routing() {
+		// Hook into frappe.router to intercept deep links before pages render
+		const self = this;
+
+		console.log("[Deep Link] Setting up global routing hook");
+		console.log("[Deep Link] frappe.router exists:", !!frappe.router);
+
+		// Try different event binding methods
+		// Method 1: jQuery-style event
+		if (typeof $(frappe.router).on === 'function') {
+			console.log("[Deep Link] Using jQuery event binding");
+			$(frappe.router).on("change", async function() {
+				console.log("[Deep Link] Router change event fired (jQuery)");
+				await self.handle_deep_link_on_route_change();
+			});
+		}
+
+		// Method 2: Direct frappe.router.on if it exists
+		if (typeof frappe.router.on === 'function') {
+			console.log("[Deep Link] Using frappe.router.on event binding");
+			frappe.router.on("change", async function() {
+				console.log("[Deep Link] Router change event fired (frappe.router.on)");
+				await self.handle_deep_link_on_route_change();
+			});
+		}
+
+		// Method 3: Wrap the render method directly
+		if (!frappe.router._original_render) {
+			console.log("[Deep Link] Wrapping frappe.router.render method");
+			frappe.router._original_render = frappe.router.render;
+			frappe.router.render = function(...args) {
+				console.log("[Deep Link] Router render called, current_route:", frappe.router.current_route);
+
+				// Check if we should handle as deep link (async operation)
+				if (self.all_pages && self.all_pages.length > 0) {
+					// Capture context and arguments
+					const renderContext = this;
+
+					// Run async deep link handling
+					self.handle_deep_link_on_route_change().then((handled) => {
+						console.log("[Deep Link] Async handling complete, handled =", handled);
+
+						// Always call render - if handled, active window is set
+						// and existing window routing will redirect page to window
+						frappe.router._original_render.apply(renderContext, args);
+					});
+
+					// Don't render immediately - wait for async handling
+					return;
+				}
+
+				// Call original render
+				return frappe.router._original_render.apply(this, args);
+			};
+		}
+
+		console.log("[Deep Link] Global routing hook installed");
+	}
+
+	async handle_deep_link_on_route_change() {
+		// Prevent re-entrant calls while handling a deep link
+		if (this._handling_deep_link) {
+			console.log("[Deep Link] Already handling a deep link, skipping");
+			return false;
+		}
+
+		const route = frappe.router.current_route;
+
+		console.log("[Deep Link] Checking route:", route);
+
+		if (!route || route.length === 0) {
+			console.log("[Deep Link] No route");
+			return false;
+		}
+
+		// Check if this is a workspace route
+		const first_part = route[0];
+		if (first_part === "Workspaces") {
+			console.log("[Deep Link] This is a workspace route, skipping");
+			return false;
+		}
+
+		// Check if this is a doctype-related route (Form, List, Report, Tree, etc.)
+		const doctype_views = ["Form", "List", "Report", "Tree", "Kanban", "Calendar", "Gantt", "Dashboard", "Image", "Inbox", "Map"];
+		if (!doctype_views.includes(first_part)) {
+			console.log("[Deep Link] Not a doctype view, skipping");
+			return false;
+		}
+
+		// Extract the doctype from the route
+		const doctype = route[1];
+		if (!doctype) {
+			console.log("[Deep Link] No doctype in route");
+			return false;
+		}
+
+		// Check if we already have a workspace window open for this
+		if (this.active_workspace_window && this.active_workspace_window.is(":visible")) {
+			console.log("[Deep Link] Already have active workspace window, letting page render in window");
+			// Return false so page renders, but existing window routing will catch it
+			return false;
+		}
+
+		console.log(`[Deep Link] Detected deep link to ${first_part} view for doctype: ${doctype}`);
+
+		// Set flag to prevent re-entrant calls
+		this._handling_deep_link = true;
+
+		try {
+			// Find which workspace contains this doctype
+			let workspace = await this.find_workspace_for_doctype(doctype);
+
+			if (!workspace) {
+				console.log(`[Deep Link] No specific workspace found for doctype: ${doctype}`);
+				console.log(`[Deep Link] Using fallback workspace strategy`);
+
+				// FALLBACK STRATEGY: Use a default workspace
+				workspace = this.get_fallback_workspace();
+
+				if (!workspace) {
+					console.log(`[Deep Link] ERROR: No fallback workspace available, allowing default behavior`);
+					return false;
+				}
+
+				console.log(`[Deep Link] Using fallback workspace: ${workspace.name}`);
+			} else {
+				console.log(`[Deep Link] Found workspace "${workspace.name}" for doctype: ${doctype}`);
+			}
+
+			// Open the workspace window and navigate to the deep link
+			await this.open_workspace_for_deep_link(workspace, route);
+
+			// Return true to indicate we handled this deep link
+			return true;
+		} finally {
+			// Clear flag after handling
+			this._handling_deep_link = false;
+		}
+	}
+
+	build_doctype_workspace_map() {
+		// Build a mapping of doctypes to their workspaces
+		// This allows us to determine which workspace to open for a deep link
+		this.doctype_workspace_map = {};
+
+		// For each workspace, we'll need to fetch its links to build the mapping
+		// Since we don't have the full workspace data yet, we'll build this on-demand
+		console.log("[Deep Link] Doctype-workspace mapping system initialized");
+	}
+
+	async handle_deep_link() {
+		// Check if current route is a deep link (non-workspace route)
+		const route = frappe.router.current_route;
+		
+		if (!route || route.length === 0) {
+			return false;
+		}
+
+		// Check if this is a workspace route
+		const first_part = route[0];
+		if (first_part === "Workspaces") {
+			// This is a workspace route, not a deep link
+			return false;
+		}
+
+		// Check if this is a doctype-related route (Form, List, Report, Tree, etc.)
+		const doctype_views = ["Form", "List", "Report", "Tree", "Kanban", "Calendar", "Gantt", "Dashboard", "Image", "Inbox", "Map"];
+		if (!doctype_views.includes(first_part)) {
+			// Not a doctype view, let it handle normally
+			return false;
+		}
+
+		// Extract the doctype from the route
+		// Routes are like: ["Form", "User", "user-001"] or ["List", "User"]
+		const doctype = route[1];
+		if (!doctype) {
+			return false;
+		}
+
+		console.log(`[Deep Link] Detected deep link to ${first_part} view for doctype: ${doctype}`);
+		console.log(`[Deep Link] Full route:`, route);
+
+		// Find which workspace contains this doctype
+		const workspace = await this.find_workspace_for_doctype(doctype);
+
+		if (!workspace) {
+			console.log(`[Deep Link] No workspace found for doctype: ${doctype}, showing in main view`);
+			return false; // Let it show in main view
+		}
+
+		console.log(`[Deep Link] Found workspace "${workspace.name}" for doctype: ${doctype}`);
+
+		// Open the workspace window and navigate to the deep link
+		await this.open_workspace_for_deep_link(workspace, route);
+
+		return true; // Deep link was handled
+	}
+
+	async find_workspace_for_doctype(doctype) {
+		// Try to find which workspace contains this doctype
+		// We'll check each workspace's links to see if any reference this doctype
+
+		for (let page of this.all_pages) {
+			// Get the workspace data (which includes links)
+			try {
+				const workspace_data = await frappe.call({
+					method: "frappe.desk.desktop.get_desktop_page",
+					args: {
+						page: JSON.stringify({ name: page.title, public: page.public })
+					}
+				});
+
+				// Check shortcuts for this doctype
+				if (workspace_data.message && workspace_data.message.shortcuts) {
+					const shortcuts = workspace_data.message.shortcuts;
+					// Ensure shortcuts is an array before iterating
+					if (Array.isArray(shortcuts)) {
+						for (let shortcut of shortcuts) {
+							if (shortcut.link_to === doctype && shortcut.type === "DocType") {
+								return { name: page.title, public: page.public };
+							}
+						}
+					}
+				}
+
+				// Check cards (quick lists) for this doctype
+				if (workspace_data.message && workspace_data.message.quick_lists) {
+					const quick_lists = workspace_data.message.quick_lists;
+					// Ensure quick_lists is an array before iterating
+					if (Array.isArray(quick_lists)) {
+						for (let list of quick_lists) {
+							if (list.document_type === doctype) {
+								return { name: page.title, public: page.public };
+							}
+						}
+					}
+				}
+
+			} catch (error) {
+				console.error(`[Deep Link] Error checking workspace ${page.title}:`, error);
+				continue;
+			}
+		}
+
+		// Fallback: Try to match workspace name to doctype name with simple heuristics
+		// e.g., "User" doctype -> "Users" workspace
+		for (let page of this.all_pages) {
+			const workspace_name_lower = page.title.toLowerCase();
+			const doctype_lower = doctype.toLowerCase();
+
+			// Check if workspace name contains doctype or vice versa
+			if (workspace_name_lower.includes(doctype_lower) || doctype_lower.includes(workspace_name_lower)) {
+				console.log(`[Deep Link] Using heuristic match: "${page.title}" for doctype "${doctype}"`);
+				return { name: page.title, public: page.public };
+			}
+		}
+
+		return null;
+	}
+
+	async open_workspace_for_deep_link(workspace, target_route) {
+		// Open the workspace window
+		console.log(`[Deep Link] Opening workspace window: ${workspace.name}`);
+
+		// Check if window is already open
+		const existing_window = $(`.workspace-window[data-page-name="${workspace.name}"]`);
+		if (existing_window.length > 0) {
+			console.log(`[Deep Link] Workspace window already open, using existing window`);
+			this.active_workspace_window = existing_window;
+			console.log(`[Deep Link] Set active window, existing routing will handle page display`);
+			return;
+		}
+
+		// Open new workspace window
+		this.open_workspace_window({ name: workspace.name, public: workspace.public });
+
+		// Set the newly created window as active immediately
+		// Use a short timeout to ensure DOM is updated
+		await new Promise(resolve => setTimeout(resolve, 100));
+
+		const $window = $(`.workspace-window[data-page-name="${workspace.name}"]`);
+		if ($window.length > 0) {
+			this.active_workspace_window = $window;
+			console.log(`[Deep Link] Set active window, existing routing will handle page display`);
+		} else {
+			console.log(`[Deep Link] WARNING: Window not found after creation`);
+		}
+	}
+
+	async handle_pending_deep_link(pending) {
+		console.log(`[Deep Link] Handling pending deep link: ${pending.view} for ${pending.doctype}`);
+
+		// Find which workspace contains this doctype
+		let workspace = await this.find_workspace_for_doctype(pending.doctype);
+
+		if (!workspace) {
+			console.log(`[Deep Link] No specific workspace found for doctype: ${pending.doctype}`);
+			console.log(`[Deep Link] Using fallback workspace strategy`);
+
+			// FALLBACK STRATEGY: Use a default workspace
+			workspace = this.get_fallback_workspace();
+
+			if (!workspace) {
+				console.log(`[Deep Link] ERROR: No fallback workspace available, allowing normal behavior`);
+				// Re-route to the original deep link to show in main view
+				setTimeout(() => {
+					frappe.set_route(pending.route);
+				}, 100);
+				return;
+			}
+
+			console.log(`[Deep Link] Using fallback workspace: ${workspace.name}`);
+		} else {
+			console.log(`[Deep Link] Found workspace "${workspace.name}" for doctype: ${pending.doctype}`);
+		}
+
+		// We're already on a workspace page (redirected there by global handler)
+		// Just open the workspace window and navigate to the deep link
+		await this.open_workspace_for_deep_link(workspace, pending.route);
+
+		// Now re-trigger the original route to show in window
+		console.log("[Deep Link] Re-triggering original route in window:", pending.route);
+		setTimeout(() => {
+			frappe.set_route(pending.route);
+		}, 200);
+	}
+
+	get_fallback_workspace() {
+		// Try to find a good fallback workspace to use when doctype isn't found
+		// Priority: Home > Tools > Build > First available
+
+		const fallback_names = ["Home", "Tools", "Build", "Website"];
+
+		for (let name of fallback_names) {
+			const workspace = this.all_pages.find(p => p.title === name);
+			if (workspace) {
+				console.log(`[Deep Link] Found fallback workspace: ${name}`);
+				return { name: workspace.title, public: workspace.public };
+			}
+		}
+
+		// If none of the preferred fallbacks exist, use the first available workspace
+		if (this.all_pages && this.all_pages.length > 0) {
+			const first = this.all_pages[0];
+			console.log(`[Deep Link] Using first available workspace: ${first.title}`);
+			return { name: first.title, public: first.public };
+		}
+
+		return null;
+	}
+
 };
