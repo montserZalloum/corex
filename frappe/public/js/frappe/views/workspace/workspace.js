@@ -2535,53 +2535,35 @@ frappe.views.Workspace = class Workspace {
 	}
 
 	async find_workspace_for_doctype(doctype) {
-		// Try to find which workspace contains this doctype
-		// We'll check each workspace's links to see if any reference this doctype
+		// Use Frappe's built-in DocType → Module → Workspace relationship
+		// This is the proper Frappe way to determine workspace
 
-		for (let page of this.all_pages) {
-			// Get the workspace data (which includes links)
-			try {
-				const workspace_data = await frappe.call({
-					method: "frappe.desk.desktop.get_desktop_page",
-					args: {
-						page: JSON.stringify({ name: page.title, public: page.public })
-					}
-				});
+		console.log(`[Deep Link] Finding workspace for doctype: ${doctype} using Frappe's module system`);
 
-				// Check shortcuts for this doctype
-				if (workspace_data.message && workspace_data.message.shortcuts) {
-					const shortcuts = workspace_data.message.shortcuts;
-					// Ensure shortcuts is an array before iterating
-					if (Array.isArray(shortcuts)) {
-						for (let shortcut of shortcuts) {
-							if (shortcut.link_to === doctype && shortcut.type === "DocType") {
-								return { name: page.title, public: page.public };
-							}
-						}
-					}
+		try {
+			// Call server-side method to get workspace via module
+			const result = await frappe.call({
+				method: "frappe.desk.desktop.get_doctype_workspace",
+				args: {
+					doctype: doctype
 				}
+			});
 
-				// Check cards (quick lists) for this doctype
-				if (workspace_data.message && workspace_data.message.quick_lists) {
-					const quick_lists = workspace_data.message.quick_lists;
-					// Ensure quick_lists is an array before iterating
-					if (Array.isArray(quick_lists)) {
-						for (let list of quick_lists) {
-							if (list.document_type === doctype) {
-								return { name: page.title, public: page.public };
-							}
-						}
-					}
-				}
-
-			} catch (error) {
-				console.error(`[Deep Link] Error checking workspace ${page.title}:`, error);
-				continue;
+			if (result && result.message) {
+				console.log(`[Deep Link] Found workspace via module: ${result.message.name}`);
+				return result.message;
 			}
+
+			console.log(`[Deep Link] No workspace found via module for doctype: ${doctype}`);
+
+		} catch (error) {
+			console.error(`[Deep Link] Error getting workspace for doctype ${doctype}:`, error);
 		}
 
 		// Fallback: Try to match workspace name to doctype name with simple heuristics
 		// e.g., "User" doctype -> "Users" workspace
+		console.log(`[Deep Link] Trying heuristic matching for doctype: ${doctype}`);
+
 		for (let page of this.all_pages) {
 			const workspace_name_lower = page.title.toLowerCase();
 			const doctype_lower = doctype.toLowerCase();

@@ -415,6 +415,76 @@ def get_desktop_page(page):
 
 
 @frappe.whitelist()
+def get_doctype_workspace(doctype):
+	"""
+	Find the workspace that contains a given DocType.
+	Uses the DocType's module to find the corresponding workspace.
+
+	Args:
+		doctype (str): Name of the DocType
+
+	Returns:
+		dict: Workspace info with 'name' and 'public' keys, or None if not found
+	"""
+	try:
+		# Get DocType metadata
+		meta = frappe.get_meta(doctype)
+
+		if not meta:
+			return None
+
+		# Get the module name
+		module = meta.module
+
+		# Try to find workspace by module name
+		# Workspaces are often named after their module
+		workspace = frappe.db.get_value(
+			"Workspace",
+			{"module": module},
+			["name", "title", "public"],
+			as_dict=True
+		)
+
+		if workspace:
+			return {
+				"name": workspace.title,
+				"public": workspace.public
+			}
+
+		# Fallback: Check if any workspace has a link to this DocType
+		workspace_links = frappe.get_all(
+			"Workspace Link",
+			filters={
+				"link_type": "DocType",
+				"link_to": doctype
+			},
+			fields=["parent"],
+			limit=1
+		)
+
+		if workspace_links:
+			workspace_name = workspace_links[0].parent
+			workspace = frappe.db.get_value(
+				"Workspace",
+				workspace_name,
+				["title", "public"],
+				as_dict=True
+			)
+
+			if workspace:
+				return {
+					"name": workspace.title,
+					"public": workspace.public
+				}
+
+		return None
+
+	except Exception as e:
+		frappe.log_error(f"Error finding workspace for DocType {doctype}: {str(e)}")
+		return None
+
+
+@frappe.whitelist()
 def get_workspace_sidebar_items():
 	"""Get list of sidebar items for desk"""
 	has_access = "Workspace Manager" in frappe.get_roles()
