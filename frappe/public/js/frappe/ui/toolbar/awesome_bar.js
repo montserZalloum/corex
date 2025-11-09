@@ -107,10 +107,13 @@ frappe.search.AwesomeBar = class AwesomeBar {
 			me.autocomplete_open = false;
 		});
 
-		$input.on("awesomplete-select", function (e) {
+		$input.on("awesomplete-select", async function (e) {
 			var o = e.originalEvent;
 			var value = o.text.value;
 			var item = awesomplete.get_item(value);
+
+			console.log("[Awesomebar] Item selected:", item);
+			console.log("[Awesomebar] Item route:", item.route);
 
 			if (item.route_options) {
 				frappe.route_options = item.route_options;
@@ -127,7 +130,15 @@ frappe.search.AwesomeBar = class AwesomeBar {
 					window.open(item.route[0], "_blank");
 					return;
 				}
-				frappe.set_route(item.route);
+
+				// WORKSPACE WINDOW INTEGRATION
+				// If workspace system is available, try to open result in a workspace window
+				const handled = await me.handle_awesomebar_selection(item.route);
+
+				if (!handled) {
+					// Fallback to default routing if not handled by workspace system
+					frappe.set_route(item.route);
+				}
 			}
 			$input.val("");
 			$input.trigger("blur");
@@ -375,6 +386,144 @@ frappe.search.AwesomeBar = class AwesomeBar {
 					frappe.msgprint(frappe.utils.get_random(16), __("Result"));
 				},
 			});
+		}
+	}
+
+	async handle_awesomebar_selection(route) {
+		// Handle awesomebar selection to open in workspace windows
+		// This integrates with the OS-like desktop experience
+
+		console.log("[Awesomebar] Handling selection (raw):", route, typeof route);
+
+		// Check if workspace system is available
+		if (!frappe.workspace) {
+			console.log("[Awesomebar] Workspace system not available, using default routing");
+			return false;
+		}
+
+		// Normalize route to array format
+		let route_array;
+		if (typeof route === "string") {
+			// Split string route like "List/User" into ["List", "User"]
+			route_array = route.split("/").filter(part => part.length > 0);
+		} else if (Array.isArray(route)) {
+			route_array = [...route]; // Clone to avoid modifying original
+		} else {
+			route_array = [route];
+		}
+
+		// Clean up malformed routes (e.g., ["List", "User", "List"] -> ["List", "User"])
+		// Remove duplicate trailing "List" if it exists
+		if (route_array.length >= 3 &&
+		    route_array[0] === "List" &&
+		    route_array[route_array.length - 1] === "List" &&
+		    route_array[2] !== "Report" &&
+		    route_array[2] !== "Inbox") {
+			console.log("[Awesomebar] Detected malformed route with duplicate 'List', cleaning up");
+			route_array = route_array.slice(0, 2); // Keep only ["List", "DocType"]
+		}
+
+		console.log("[Awesomebar] Normalized route:", route_array);
+
+		if (!route_array || route_array.length === 0) {
+			console.log("[Awesomebar] Empty route");
+			return false;
+		}
+
+		// Check if this is a workspace route itself
+		const first_part = route_array[0];
+		if (first_part === "Workspaces" || route_array.includes("workspaces")) {
+			console.log("[Awesomebar] This is a workspace route, using default routing");
+			return false;
+		}
+
+		// Check if this is a doctype-related route
+		const doctype_views = [
+			"Form", "List", "Report", "Tree", "Kanban",
+			"Calendar", "Gantt", "Dashboard", "Image",
+			"Inbox", "Map"
+		];
+
+		let doctype = null;
+		let is_doctype_route = false;
+
+		// Extract doctype from route
+		if (doctype_views.includes(first_part)) {
+			// Routes like ["List", "User"] or ["Form", "User", "Administrator"]
+			doctype = route_array[1];
+			is_doctype_route = true;
+		} else if (route_array.length === 1) {
+			// Check if this is a doctype list route (e.g., ["User"])
+			// We'll try to find a workspace for it anyway
+			doctype = first_part;
+			is_doctype_route = true;
+		}
+
+		if (!is_doctype_route || !doctype) {
+			console.log("[Awesomebar] Not a doctype route, using default routing");
+			return false;
+		}
+
+		console.log(`[Awesomebar] Doctype route detected: ${first_part} for ${doctype}`);
+
+		try {
+			// Find the appropriate workspace for this doctype
+			let workspace = await frappe.workspace.find_workspace_for_doctype(doctype);
+
+			if (!workspace) {
+				console.log(`[Awesomebar] No specific workspace found for doctype: ${doctype}`);
+				console.log(`[Awesomebar] Using fallback workspace strategy`);
+
+				// Try fallback workspace
+				workspace = frappe.workspace.get_fallback_workspace();
+
+				if (!workspace) {
+					console.log(`[Awesomebar] No fallback workspace available, using default routing`);
+					return false;
+				}
+
+				console.log(`[Awesomebar] Using fallback workspace: ${workspace.name}`);
+			} else {
+				console.log(`[Awesomebar] Found workspace "${workspace.name}" for doctype: ${doctype}`);
+			}
+
+			// Open the workspace window and set it as active
+			await frappe.workspace.open_workspace_for_deep_link(workspace, route_array);
+
+			// Check if we're already on the target route
+			const current_route = frappe.get_route();
+			const routes_match = current_route.length === route_array.length &&
+			                     current_route.every((part, i) => part === route_array[i]);
+
+			if (routes_match) {
+				// Already on this route - need to manually show page in window
+				// because frappe.set_route() will be a no-op
+				console.log(`[Awesomebar] Already on target route, manually showing page in window`);
+
+				// Get the current page label
+				const page_label = frappe.get_route_str();
+
+				// Force display in window
+				setTimeout(() => {
+					if (frappe.workspace.active_workspace_window) {
+						frappe.workspace.show_page_in_window(
+							frappe.workspace.active_workspace_window,
+							page_label
+						);
+					}
+				}, 100);
+
+				return true; // We handled it, skip default routing
+			}
+
+			// Different route - let the default frappe.set_route() be called
+			// The existing window routing system will catch it and display in the window
+			console.log(`[Awesomebar] Workspace window opened, letting default routing handle navigation`);
+
+			return false; // Let default routing happen in the workspace window
+		} catch (error) {
+			console.error("[Awesomebar] Error handling workspace selection:", error);
+			return false; // Fallback to default routing
 		}
 	}
 };
