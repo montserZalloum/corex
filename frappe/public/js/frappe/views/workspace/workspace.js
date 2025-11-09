@@ -45,6 +45,7 @@ frappe.workspace_deep_link = {
 
 			frappe.router.render = function(...args) {
 				console.log("[Deep Link Global] Render called, route:", frappe.router.current_route);
+				console.log("[Deep Link Global] Render called, route:", frappe.router.current_route);
 
 				// Check if workspace instance exists and is ready
 				if (frappe.workspace && frappe.workspace.all_pages && frappe.workspace.all_pages.length > 0) {
