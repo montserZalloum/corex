@@ -1902,9 +1902,17 @@ frappe.views.Workspace = class Workspace {
 		const $content = $window.find(".window-content");
 		$content.empty();
 
-		// Create editor JS container for this window
+		// Create sidebar + main content layout
+		const sidebar_html = `<div class="window-sidebar"></div>`;
 		const editor_id = `window-editor-${frappe.router.slug(page.name)}-${Date.now()}`;
-		$content.html(`<div id="${editor_id}" class="desk-page page-main-content" style="padding: 15px;"></div>`);
+		const main_html = `<div class="window-main">
+			<div id="${editor_id}" class="desk-page page-main-content" style="padding: 15px;"></div>
+		</div>`;
+
+		$content.html(sidebar_html + main_html);
+
+		// Build the sidebar with shortcuts
+		this.build_window_sidebar($window, page);
 
 		// Initialize editor for this window
 		this.initialize_window_editor(editor_id, this.content);
@@ -1916,6 +1924,218 @@ frappe.views.Workspace = class Workspace {
 		if (!frappe.views.Container.prototype._workspace_routing_setup) {
 			this.setup_window_routing();
 		}
+	}
+
+	build_window_sidebar($window, page) {
+		const $sidebar = $window.find(".window-sidebar");
+		$sidebar.empty();
+
+		// Get shortcuts data from page_data
+		const page_data = this.pages[page.name];
+		if (!page_data || !page_data.shortcuts || !page_data.shortcuts.items || page_data.shortcuts.items.length === 0) {
+			// No shortcuts to display
+			$sidebar.html('<div class="sidebar-empty">No shortcuts available</div>');
+			return;
+		}
+
+		// Create sidebar header
+		const header_html = `
+			<div class="sidebar-header">
+				<h5>${page.name}</h5>
+			</div>
+		`;
+		$sidebar.append(header_html);
+
+		// Create sidebar links container
+		const $links_container = $('<div class="sidebar-links"></div>');
+
+		// Build each shortcut link
+		page_data.shortcuts.items.forEach((shortcut) => {
+			if (!shortcut.link_to || shortcut.hidden) {
+				return; // Skip hidden or invalid shortcuts
+			}
+
+			const icon = shortcut.icon || 'file';
+			const label = shortcut.label || shortcut.link_to;
+			// Create unique ID for this link (used for saving order)
+			const link_id = `${shortcut.link_type}-${frappe.router.slug(shortcut.link_to)}`;
+
+			// Determine the route based on link type
+			let route = '';
+			if (shortcut.link_type === 'DocType') {
+				route = `/app/${frappe.router.slug(shortcut.link_to)}`;
+			} else if (shortcut.link_type === 'Page') {
+				route = `/app/${frappe.router.slug(shortcut.link_to)}`;
+			} else if (shortcut.link_type === 'Report') {
+				if (shortcut.is_query_report) {
+					route = `/app/query-report/${frappe.router.slug(shortcut.link_to)}`;
+				} else {
+					route = `/app/${frappe.router.slug(shortcut.link_to)}`;
+				}
+			} else {
+				// Default route
+				route = `/app/${frappe.router.slug(shortcut.link_to)}`;
+			}
+
+			const link_html = `
+				<div class="sidebar-link is-draggable" data-link-id="${link_id}" data-route="${route}" data-link-to="${shortcut.link_to}" data-link-type="${shortcut.link_type}">
+					<div class="drag-handle">
+						<svg class="icon icon-xs">
+							<use href="#icon-drag"></use>
+						</svg>
+					</div>
+					<svg class="icon icon-sm sidebar-link-icon">
+						<use href="#icon-${icon}"></use>
+					</svg>
+					<span class="sidebar-link-label">${label}</span>
+				</div>
+			`;
+
+			$links_container.append(link_html);
+		});
+
+		$sidebar.append($links_container);
+
+		// Load and apply saved order
+		const saved_order = this.load_sidebar_order($window, page);
+		if (saved_order) {
+			this.apply_sidebar_order($window, saved_order);
+		}
+
+		// Add click handlers for sidebar links
+		this.setup_sidebar_navigation($window);
+
+		// Enable drag-and-drop reordering
+		this.setup_sidebar_sortable($window, page);
+	}
+
+	setup_sidebar_navigation($window) {
+		const self = this;
+
+		$window.find(".sidebar-link").off("click").on("click", function(e) {
+			// Don't navigate if clicking on drag handle
+			if ($(e.target).closest(".drag-handle").length > 0) {
+				return;
+			}
+
+			e.preventDefault();
+			e.stopPropagation();
+
+			const $link = $(this);
+			const route = $link.data("route");
+
+			if (!route) return;
+
+			// Set this window as active before navigation
+			self.active_workspace_window = $window;
+			$window.data("is-active", true);
+
+			// Remove active class from all links in this window
+			$window.find(".sidebar-link").removeClass("active");
+
+			// Add active class to clicked link
+			$link.addClass("active");
+
+			// Store current active route in window data
+			$window.data("current-route", route);
+
+			// Navigate using frappe router
+			frappe.set_route(route);
+		});
+	}
+
+	setup_sidebar_sortable($window, page) {
+		const self = this;
+		const $linksContainer = $window.find(".sidebar-links");
+
+		if (!$linksContainer.length) return;
+
+		// Initialize Sortable.js
+		new Sortable($linksContainer[0], {
+			handle: ".drag-handle",
+			draggable: ".sidebar-link.is-draggable",
+			animation: 150,
+			ghostClass: "sortable-ghost",
+			chosenClass: "sortable-chosen",
+			dragClass: "sortable-drag",
+
+			onEnd: function(evt) {
+				// Save the new order after drag completes
+				self.save_sidebar_order($window, page);
+			}
+		});
+	}
+
+	load_sidebar_order($window, page) {
+		const storage_key = `workspace_${frappe.router.slug(page.name)}_sidebar_order`;
+		const saved_order = localStorage.getItem(storage_key);
+
+		if (saved_order) {
+			try {
+				return JSON.parse(saved_order);
+			} catch (e) {
+				console.error("Failed to parse saved sidebar order:", e);
+				return null;
+			}
+		}
+
+		return null;
+	}
+
+	apply_sidebar_order($window, saved_order) {
+		if (!saved_order || !Array.isArray(saved_order) || saved_order.length === 0) {
+			return;
+		}
+
+		const $linksContainer = $window.find(".sidebar-links");
+		const $links = $linksContainer.find(".sidebar-link");
+
+		// Create a map of link elements by their ID
+		const linksMap = {};
+		$links.each(function() {
+			const link_id = $(this).data("link-id");
+			if (link_id) {
+				linksMap[link_id] = $(this);
+			}
+		});
+
+		// Detach all links
+		$links.detach();
+
+		// Append links in saved order
+		saved_order.forEach(link_id => {
+			if (linksMap[link_id]) {
+				$linksContainer.append(linksMap[link_id]);
+				delete linksMap[link_id];
+			}
+		});
+
+		// Append any remaining links that weren't in saved order (new links)
+		Object.keys(linksMap).forEach(link_id => {
+			$linksContainer.append(linksMap[link_id]);
+		});
+	}
+
+	save_sidebar_order($window, page) {
+		const storage_key = `workspace_${frappe.router.slug(page.name)}_sidebar_order`;
+		const order = [];
+
+		// Collect current order from DOM
+		$window.find(".sidebar-link").each(function() {
+			const link_id = $(this).data("link-id");
+			if (link_id) {
+				order.push(link_id);
+			}
+		});
+
+		// Save to localStorage
+		localStorage.setItem(storage_key, JSON.stringify(order));
+
+		// Show success notification
+		frappe.show_alert({
+			message: __("Sidebar order saved"),
+			indicator: "green"
+		}, 2);
 	}
 
 	setup_window_routing() {
@@ -2056,6 +2276,9 @@ frappe.views.Workspace = class Workspace {
 		$window.data("current-page", page);
 		$window.data("workspace-active-page", label);
 
+		// Update sidebar active state
+		this.update_sidebar_active_state($window);
+
 		return page;
 	}
 
@@ -2065,6 +2288,25 @@ frappe.views.Workspace = class Workspace {
 		const page_title = page?.label || page_label;
 
 		$breadcrumb.html(` > ${page_title}`).show();
+	}
+
+	update_sidebar_active_state($window) {
+		// Get current route from window location
+		const currentRoute = window.location.pathname;
+
+		// Remove active class from all sidebar links in this window
+		$window.find(".sidebar-link").removeClass("active");
+
+		// Find and highlight the matching link
+		$window.find(".sidebar-link").each(function() {
+			const $link = $(this);
+			const linkRoute = $link.data("route");
+
+			// Check if the current route matches or starts with this link's route
+			if (currentRoute === linkRoute || currentRoute.startsWith(linkRoute + '/')) {
+				$link.addClass("active");
+			}
+		});
 	}
 
 	show_workspace_content_in_window($window) {
@@ -2118,6 +2360,9 @@ frappe.views.Workspace = class Workspace {
 		// Clear stored page
 		$window.data("current-page", null);
 		$window.data("workspace-active-page", null);
+
+		// Clear sidebar active state
+		$window.find(".sidebar-link").removeClass("active");
 
 		// Navigate to workspace route
 		const workspacePage = $window.data("workspace-page");
