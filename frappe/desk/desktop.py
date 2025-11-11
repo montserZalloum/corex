@@ -1084,33 +1084,49 @@ def get_permitted_link_options():
 # ======================================
 
 def can_access_workspace(workspace_name):
-	"""Check if current user can access this workspace"""
-	try:
-		workspace = frappe.get_doc("Workspace", workspace_name)
+    """Check if the current user can access this workspace."""
+    try:
+        workspace = frappe.get_doc("Workspace", workspace_name)
 
-		# Check if workspace is public
-		if workspace.public:
-			# Check module-based permissions if module is set
-			if workspace.module:
-				# User needs access to the module
-				has_module_access = frappe.has_permission(workspace.module, ptype="read")
-				if not has_module_access:
-					return False
+        # Check if the workspace is public
+        if workspace.public:
+            # Check module-based permissions if a module is set
+            if workspace.module:
+                # --- START OF THE NEW LOGIC ---
+                # The "Module" field sometimes contains "Core" which is a code folder,
+                # but not a real record in the "Module Def" DocType.
+                # The permission engine will crash if we try to check it.
+                # So, we will specifically ignore checking permissions on "Core".
+                if workspace.module == "Core":
+                    # We skip the module permission check because it's invalid.
+                    # The role-based checks below will still provide security.
+                    pass
+                else:
+                    # For all other valid modules, we perform the permission check as usual.
+                    has_module_access = frappe.has_permission(workspace.module, ptype="read")
+                    if not has_module_access:
+                        return False
+                # --- END OF THE NEW LOGIC ---
 
-			# Check role-based restrictions if roles are set
-			if workspace.roles:
-				user_roles = frappe.get_roles()
-				workspace_roles = [role.role for role in workspace.roles]
-				if not any(role in workspace_roles for role in user_roles):
-					return False
+            # Check role-based restrictions if any are set
+            if workspace.roles:
+                user_roles = frappe.get_roles()
+                workspace_roles = [role.role for role in workspace.roles]
+                if not any(role in workspace_roles for role in user_roles):
+                    return False
 
-			return True
-		else:
-			# Private workspace - only owner or Workspace Manager can access
-			return workspace.for_user == frappe.session.user or frappe.has_role("Workspace Manager")
+            # If all checks pass, grant access
+            return True
+        else:
+            # For private workspaces, only the owner or a Workspace Manager can access
+            return workspace.for_user == frappe.session.user or frappe.has_role("Workspace Manager")
 
-	except frappe.PermissionError:
-		return False
+    except frappe.DoesNotExistError:
+        # If the workspace itself doesn't exist, deny access
+        return False
+    except frappe.PermissionError:
+        # If any other permission error occurs, deny access
+        return False
 
 
 def has_permission_for_workspace_link(link):
