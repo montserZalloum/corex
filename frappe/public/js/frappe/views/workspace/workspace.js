@@ -237,7 +237,12 @@ frappe.views.Workspace = class Workspace {
 				</svg>
 				<span class="hidden-xs" data-label="New">${__("New")}</span>
 			</button>
-			<!-- Edit button removed - use window edit buttons instead -->
+			<button data-label="Edit" class="btn btn-default ellipsis btn-edit-main-workspace" title="Edit Current Workspace">
+				<svg class="es-icon es-line icon-xs" style="" aria-hidden="true">
+					<use class="" href="#es-line-edit"></use>
+				</svg>
+				<span class="hidden-xs" data-label="Edit">${__("Edit")}</span>
+			</button>
 		</div>
 	`).appendTo(this.body);
 
@@ -245,7 +250,9 @@ frappe.views.Workspace = class Workspace {
 			this.initialize_new_page(true);
 		});
 
-		// Old edit button handler removed - editing is now done per-window
+		this.body.find(".btn-edit-main-workspace").on("click", () => {
+			this.edit_current_workspace();
+		});
 	}
 
 	get_pages() {
@@ -1368,8 +1375,12 @@ frappe.views.Workspace = class Workspace {
 				values.title = strip_html(values.title);
 				if (!this.validate_page(values)) return;
 				d.hide();
-				this.initialize_editorjs_undo();
-				this.setup_customization_buttons({ is_editable: true });
+
+				// Only initialize undo if editor exists (old full-page editing mode)
+				if (this.editor) {
+					this.initialize_editorjs_undo();
+					this.setup_customization_buttons({ is_editable: true });
+				}
 
 				let name = values.title + (values.is_public ? "" : "-" + frappe.session.user);
 				let blocks = [
@@ -1393,44 +1404,47 @@ frappe.views.Workspace = class Workspace {
 					selected: true,
 				};
 
-				this.editor
-					.render({
-						blocks: blocks,
-					})
-					.then(async () => {
-						if (this.editor.configuration.readOnly) {
-							this.is_read_only = false;
-							await this.editor.readOnly.toggle();
+				// Save workspace to database
+				frappe.call({
+					method: "frappe.desk.doctype.workspace.workspace.new_page",
+					args: {
+						new_page: new_page,
+					},
+					callback: (res) => {
+						if (res.message) {
+							let message = __("Workspace {0} Created Successfully", [
+								new_page.title.bold(),
+							]);
+							frappe.show_alert({
+								message: message,
+								indicator: "green",
+							});
+
+							// Update local cache and navigate
+							this.update_cached_values(new_page, new_page, true, true);
+
+							let pre_url = new_page.public ? "" : "private/";
+							let route = pre_url + frappe.router.slug(new_page.title);
+							frappe.set_route(route);
+
+							this.make_sidebar();
+							this.show_sidebar_actions();
+							localStorage.setItem("new_workspace", JSON.stringify(new_page));
 						}
+					},
+				});
 
-						frappe.call({
-							method: "frappe.desk.doctype.workspace.workspace.new_page",
-							args: {
-								new_page: new_page,
-							},
-							callback: function (res) {
-								if (res.message) {
-									let message = __("Workspace {0} Created Successfully", [
-										new_page.title.bold(),
-									]);
-									frappe.show_alert({
-										message: message,
-										indicator: "green",
-									});
-								}
-							},
-						});
-
-						this.update_cached_values(new_page, new_page, true, true);
-
-						let pre_url = new_page.public ? "" : "private/";
-						let route = pre_url + frappe.router.slug(new_page.title);
-						frappe.set_route(route);
-
-						this.make_sidebar();
-						this.show_sidebar_actions();
-						localStorage.setItem("new_workspace", JSON.stringify(new_page));
+				// Only render in editor if it exists (old full-page editing mode)
+				if (this.editor) {
+					this.editor.render({
+						blocks: blocks,
 					});
+
+					if (this.editor.configuration.readOnly) {
+						this.is_read_only = false;
+						this.editor.readOnly.toggle();
+					}
+				}
 			},
 		});
 		d.show();
@@ -1581,6 +1595,7 @@ frappe.views.Workspace = class Workspace {
 		};
 
 		this.editor = new EditorJS({
+			holder: this.page.main.find(".editor-js-container").get(0),
 			data: {
 				blocks: blocks || [],
 			},
@@ -1715,6 +1730,188 @@ frappe.views.Workspace = class Workspace {
 		this.load_workspace_content(page, $window);
 
 		return $window;
+	}
+
+	edit_current_workspace() {
+		// Get the current workspace being displayed
+		const page = this.get_page_to_show();
+
+		if (!page) {
+			frappe.show_alert({
+				message: __("No workspace selected"),
+				indicator: "orange"
+			});
+			return;
+		}
+
+		// Get or create the editor for the main workspace
+		if (!this.editor) {
+			// Initialize editor if it doesn't exist
+			this.prepare_editorjs();
+		}
+
+		// Enter edit mode
+		if (this.editor) {
+			// Check if already in edit mode
+			if (this.is_read_only) {
+				this.is_read_only = false;
+
+				// Toggle editor to edit mode
+				this.editor.isReady.then(async () => {
+					await this.editor.readOnly.toggle();
+
+					// Add visual indication of edit mode
+					this.page.main.addClass("edit-mode");
+
+					// Setup edit controls
+					this.setup_customization_buttons(page);
+					this.show_sidebar_actions();
+
+					// Initialize sortable for blocks
+					this.make_blocks_sortable();
+
+					// Update button UI
+					const $editBtn = this.page.main.find(".btn-edit-main-workspace");
+					$editBtn.attr("title", "Save Changes").html(`
+						<svg class="es-icon es-line icon-xs" style="" aria-hidden="true">
+							<use class="" href="#es-line-save"></use>
+						</svg>
+						<span class="hidden-xs">${__("Save")}</span>
+					`);
+
+					// Change to save mode
+					$editBtn.off("click").on("click", () => {
+						this.save_main_workspace(page);
+					});
+
+					// Add cancel button if not exists
+					if (!this.page.main.find(".btn-cancel-main-workspace").length) {
+						$editBtn.after(`
+							<button class="btn btn-default ellipsis btn-cancel-main-workspace" title="Cancel">
+								<svg class="es-icon es-line icon-xs" style="" aria-hidden="true">
+									<use class="" href="#es-line-close"></use>
+								</svg>
+								<span class="hidden-xs">${__("Cancel")}</span>
+							</button>
+						`);
+
+						this.page.main.find(".btn-cancel-main-workspace").on("click", () => {
+							this.cancel_main_workspace_edit(page);
+						});
+					}
+
+					frappe.show_alert({
+						message: __("Edit mode enabled"),
+						indicator: "blue"
+					});
+				});
+			} else {
+				// Already in edit mode, save instead
+				this.save_main_workspace(page);
+			}
+		}
+	}
+
+	save_main_workspace(page) {
+		// Save workspace content from main editor
+		this.editor.save().then((outputData) => {
+			// Extract new widgets
+			let new_widgets = {};
+			outputData.blocks.forEach((item) => {
+				if (item.data.new) {
+					if (!new_widgets[item.type]) {
+						new_widgets[item.type] = [];
+					}
+					new_widgets[item.type].push(item.data.new);
+					delete item.data["new"];
+				}
+			});
+
+			// Filter blocks
+			let blocks = outputData.blocks.filter(
+				(item) =>
+					item.type != "card" ||
+					(item.data.card_name !== "Custom Documents" &&
+						item.data.card_name !== "Custom Reports")
+			);
+
+			// Save to backend
+			frappe.call({
+				method: "frappe.desk.doctype.workspace.workspace.save_page",
+				args: {
+					title: page.name,
+					public: page.public ? 1 : 0,
+					new_widgets: new_widgets,
+					blocks: JSON.stringify(blocks)
+				},
+				callback: async (res) => {
+					if (res.message) {
+						// Exit edit mode
+						this.is_read_only = true;
+						await this.editor.readOnly.toggle();
+
+						this.page.main.removeClass("edit-mode");
+
+						// Restore edit button
+						const $editBtn = this.page.main.find(".btn-edit-main-workspace");
+						$editBtn.attr("title", "Edit Current Workspace").html(`
+							<svg class="es-icon es-line icon-xs" style="" aria-hidden="true">
+								<use class="" href="#es-line-edit"></use>
+							</svg>
+							<span class="hidden-xs">${__("Edit")}</span>
+						`);
+
+						// Reset click handler
+						$editBtn.off("click").on("click", () => {
+							this.edit_current_workspace();
+						});
+
+						// Remove cancel button
+						this.page.main.find(".btn-cancel-main-workspace").remove();
+
+						frappe.show_alert({
+							message: __("Workspace saved successfully"),
+							indicator: "green"
+						});
+					}
+				}
+			});
+		});
+	}
+
+	cancel_main_workspace_edit(page) {
+		// Cancel edit mode
+		this.editor.isReady.then(async () => {
+			await this.editor.readOnly.toggle();
+		});
+
+		this.is_read_only = true;
+		this.page.main.removeClass("edit-mode");
+
+		// Restore edit button
+		const $editBtn = this.page.main.find(".btn-edit-main-workspace");
+		$editBtn.attr("title", "Edit Current Workspace").html(`
+			<svg class="es-icon es-line icon-xs" style="" aria-hidden="true">
+				<use class="" href="#es-line-edit"></use>
+			</svg>
+			<span class="hidden-xs">${__("Edit")}</span>
+		`);
+
+		// Reset click handler
+		$editBtn.off("click").on("click", () => {
+			this.edit_current_workspace();
+		});
+
+		// Remove cancel button
+		this.page.main.find(".btn-cancel-main-workspace").remove();
+
+		// Reload content to discard changes
+		this.prepare_editorjs();
+
+		frappe.show_alert({
+			message: __("Edit cancelled"),
+			indicator: "orange"
+		});
 	}
 
 	make_window_draggable($window) {
