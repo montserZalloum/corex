@@ -1951,15 +1951,10 @@ frappe.views.Workspace = class Workspace {
 			return;
 		}
 
-		// Create sidebar header with edit button
+		// Create sidebar header (no separate edit button - use window edit button instead)
 		const header_html = `
 			<div class="sidebar-header">
 				<h5>${page.name}</h5>
-				<button class="btn btn-xs btn-edit-sidebar" title="Edit Sidebar">
-					<svg class="icon icon-xs">
-						<use href="#icon-edit"></use>
-					</svg>
-				</button>
 			</div>
 		`;
 		$sidebar.append(header_html);
@@ -2036,8 +2031,7 @@ frappe.views.Workspace = class Workspace {
 		// Enable drag-and-drop reordering
 		this.setup_sidebar_sortable($window, page);
 
-		// Add edit button handler
-		this.setup_edit_sidebar_button($window, page);
+		// Edit mode is now controlled by the main window edit button
 	}
 
 	setup_sidebar_navigation($window) {
@@ -2176,49 +2170,83 @@ frappe.views.Workspace = class Workspace {
 	setup_edit_sidebar_button($window, page) {
 		const self = this;
 		$window.find(".btn-edit-sidebar").off("click").on("click", function() {
-			self.enter_edit_mode($window, page);
+			self.enter_sidebar_edit_mode($window, page);
 		});
 	}
 
-	enter_edit_mode($window, page) {
+	enter_sidebar_edit_mode($window, page) {
 		const $sidebar = $window.find(".window-sidebar");
 
 		// Add edit mode class
 		$sidebar.addClass("edit-mode");
 
-		// Replace header with edit controls
-		const header_html = `
-			<div class="sidebar-header edit-mode-header">
-				<h5>${page.name} - Edit</h5>
-				<div class="edit-controls">
-					<button class="btn btn-xs btn-add-link" title="Add Link">
-						<svg class="icon icon-xs"><use href="#icon-add"></use></svg>
-					</button>
-					<button class="btn btn-xs btn-save-sidebar" title="Save">
-						<svg class="icon icon-xs"><use href="#icon-save"></use></svg>
-					</button>
-					<button class="btn btn-xs btn-reset-sidebar" title="Reset">
-						<svg class="icon icon-xs"><use href="#icon-refresh"></use></svg>
-					</button>
-					<button class="btn btn-xs btn-cancel-edit" title="Cancel">
-						<svg class="icon icon-xs"><use href="#icon-close"></use></svg>
-					</button>
-				</div>
-			</div>
-		`;
-		$sidebar.find(".sidebar-header").replaceWith(header_html);
+		// Check if sidebar has proper structure
+		const hasHeader = $sidebar.find(".sidebar-header").length > 0;
+		const hasLinksContainer = $sidebar.find(".sidebar-links").length > 0;
 
-		// Add remove buttons to each link
-		$sidebar.find(".sidebar-link").each(function() {
-			const $link = $(this);
-			if (!$link.find(".btn-remove-link").length) {
-				$link.append(`
-					<button class="btn-remove-link" title="Remove">
-						<svg class="icon icon-xs"><use href="#icon-close"></use></svg>
-					</button>
-				`);
-			}
-		});
+		// If sidebar is empty, rebuild it with proper structure
+		if (!hasHeader || !hasLinksContainer) {
+			$sidebar.empty();
+
+			// Add header with edit controls
+			const header_html = `
+				<div class="sidebar-header edit-mode-header">
+					<h5>${page.name} - Edit</h5>
+					<div class="edit-controls">
+						<button class="btn btn-xs btn-add-link" title="Add Link">
+							<svg class="icon icon-xs"><use href="#icon-add"></use></svg>
+						</button>
+						<button class="btn btn-xs btn-save-sidebar" title="Save">
+							<svg class="icon icon-xs"><use href="#icon-save"></use></svg>
+						</button>
+						<button class="btn btn-xs btn-reset-sidebar" title="Reset">
+							<svg class="icon icon-xs"><use href="#icon-refresh"></use></svg>
+						</button>
+						<button class="btn btn-xs btn-cancel-edit" title="Cancel">
+							<svg class="icon icon-xs"><use href="#icon-close"></use></svg>
+						</button>
+					</div>
+				</div>
+			`;
+			$sidebar.append(header_html);
+
+			// Add empty links container
+			$sidebar.append('<div class="sidebar-links"><div class="sidebar-empty">No links yet. Click Add to create one.</div></div>');
+		} else {
+			// Replace existing header with edit controls
+			const header_html = `
+				<div class="sidebar-header edit-mode-header">
+					<h5>${page.name} - Edit</h5>
+					<div class="edit-controls">
+						<button class="btn btn-xs btn-add-link" title="Add Link">
+							<svg class="icon icon-xs"><use href="#icon-add"></use></svg>
+						</button>
+						<button class="btn btn-xs btn-save-sidebar" title="Save">
+							<svg class="icon icon-xs"><use href="#icon-save"></use></svg>
+						</button>
+						<button class="btn btn-xs btn-reset-sidebar" title="Reset">
+							<svg class="icon icon-xs"><use href="#icon-refresh"></use></svg>
+						</button>
+						<button class="btn btn-xs btn-cancel-edit" title="Cancel">
+							<svg class="icon icon-xs"><use href="#icon-close"></use></svg>
+						</button>
+					</div>
+				</div>
+			`;
+			$sidebar.find(".sidebar-header").replaceWith(header_html);
+
+			// Add remove buttons to each link
+			$sidebar.find(".sidebar-link").each(function() {
+				const $link = $(this);
+				if (!$link.find(".btn-remove-link").length) {
+					$link.append(`
+						<button class="btn-remove-link" title="Remove">
+							<svg class="icon icon-xs"><use href="#icon-close"></use></svg>
+						</button>
+					`);
+				}
+			});
+		}
 
 		// Setup edit mode handlers
 		this.setup_edit_mode_handlers($window, page);
@@ -2244,7 +2272,7 @@ frappe.views.Workspace = class Workspace {
 
 		// Cancel button
 		$window.find(".btn-cancel-edit").off("click").on("click", function() {
-			self.exit_edit_mode($window, page);
+			self.exit_sidebar_edit_mode($window, page);
 		});
 
 		// Remove link buttons
@@ -2254,7 +2282,7 @@ frappe.views.Workspace = class Workspace {
 		});
 	}
 
-	exit_edit_mode($window, page) {
+	exit_sidebar_edit_mode($window, page) {
 		// Reload sidebar to revert changes
 		this.build_window_sidebar($window, page);
 	}
@@ -2804,7 +2832,7 @@ frappe.views.Workspace = class Workspace {
 		const isReadOnly = $window.data("is-read-only") !== false; // default to true
 
 		if (isReadOnly) {
-			// Enter edit mode
+			// Enter edit mode for workspace content
 			await editor.readOnly.toggle();
 			$window.data("is-read-only", false);
 			$window.addClass("window-edit-mode");
@@ -2826,13 +2854,16 @@ frappe.views.Workspace = class Workspace {
 				this.make_window_blocks_sortable($window, editor);
 			});
 
+			// ALSO enter edit mode for the sidebar
+			this.enter_sidebar_edit_mode($window, page);
+
 			frappe.show_alert({
-				message: __("Edit mode enabled"),
+				message: __("Edit mode enabled (workspace + sidebar)"),
 				indicator: "blue"
 			});
 		} else {
-			// Save and exit edit mode
-			await this.save_window_workspace($window, page, editor);
+			// Save both workspace content AND sidebar customizations
+			await this.save_both_workspace_and_sidebar($window, page, editor);
 		}
 	}
 
@@ -2870,6 +2901,28 @@ frappe.views.Workspace = class Workspace {
 		}
 	}
 
+	async save_both_workspace_and_sidebar($window, page, editor) {
+		try {
+			// Save workspace content
+			await this.save_window_workspace($window, page, editor);
+
+			// Save sidebar customizations
+			this.save_sidebar_customizations($window, page);
+
+			// Exit sidebar edit mode after successful save
+			// (workspace edit mode is already exited in save_window_workspace)
+			const $sidebar = $window.find(".window-sidebar");
+			$sidebar.removeClass("edit-mode");
+
+		} catch (error) {
+			console.error("Error saving workspace and sidebar:", error);
+			frappe.show_alert({
+				message: __("Failed to save changes"),
+				indicator: "red"
+			});
+		}
+	}
+
 	async cancel_window_edit_mode($window, page) {
 		const editor = $window.data("workspace-editor");
 
@@ -2890,6 +2943,9 @@ frappe.views.Workspace = class Workspace {
 		// Remove cancel button
 		$window.find(".btn-window-cancel-edit").remove();
 
+		// Exit sidebar edit mode too
+		this.exit_sidebar_edit_mode($window, page);
+
 		// Reload content to discard changes
 		this.load_workspace_content(page, $window);
 
@@ -2903,13 +2959,10 @@ frappe.views.Workspace = class Workspace {
 		try {
 			const outputData = await editor.save();
 
-			console.log("Output data blocks:", outputData.blocks);
-
 			// Extract new widgets from blocks
 			let new_widgets = {};
 
 			outputData.blocks.forEach((item) => {
-				console.log("Block type:", item.type, "Has new:", !!item.data.new, "Data:", item.data);
 				if (item.data.new) {
 					if (!new_widgets[item.type]) {
 						new_widgets[item.type] = [];
@@ -2919,8 +2972,6 @@ frappe.views.Workspace = class Workspace {
 				}
 			});
 
-			console.log("New widgets extracted:", new_widgets);
-
 			// Filter out custom card types
 			let blocks = outputData.blocks.filter(
 				(item) =>
@@ -2928,14 +2979,6 @@ frappe.views.Workspace = class Workspace {
 					(item.data.card_name !== "Custom Documents" &&
 						item.data.card_name !== "Custom Reports")
 			);
-
-			console.log("Blocks to save:", blocks);
-			console.log("Calling save_page with:", {
-				title: page.name,
-				public: page.public ? 1 : 0,
-				new_widgets: new_widgets,
-				blocks: JSON.stringify(blocks)
-			});
 
 			// Save to backend using the correct method
 			await frappe.call({
