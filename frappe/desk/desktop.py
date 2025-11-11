@@ -745,3 +745,452 @@ def update_onboarding_step(name, field, value):
 	frappe.db.set_value("Onboarding Step", name, field, value)
 
 	capture(frappe.scrub(name), app="frappe_onboarding", properties={field: value})
+
+
+# ======================================
+# Workspace User Sidebar Customization
+# ======================================
+
+@frappe.whitelist()
+def get_user_sidebar_links(workspace_name):
+	"""
+	Get sidebar links for a workspace with permission filtering.
+	Returns custom links if user has customized, otherwise returns defaults.
+	"""
+	user = frappe.session.user
+
+	# Check if user has permission to access this workspace
+	if not can_access_workspace(workspace_name):
+		frappe.throw(_("You don't have permission to access this workspace"))
+
+	# Check if user has customizations for this PUBLIC workspace
+	custom_sidebar_name = frappe.db.get_value(
+		"Workspace User Sidebar",
+		{"user": user, "workspace": workspace_name},
+		"name"
+	)
+
+	if custom_sidebar_name:
+		# User has customizations - return filtered by permissions
+		doc = frappe.get_doc("Workspace User Sidebar", custom_sidebar_name)
+
+		# Filter links based on current permissions
+		accessible_links = []
+		for link in doc.sidebar_links:
+			if has_permission_for_sidebar_link(link):
+				accessible_links.append({
+					"link_type": link.link_type,
+					"link_to": link.link_to,
+					"label": link.label,
+					"icon": link.icon,
+					"is_custom": link.is_custom,
+					"idx": link.idx
+				})
+
+		hidden_links = frappe.parse_json(doc.hidden_default_links or "[]")
+
+		return {
+			"links": accessible_links,
+			"hidden_links": hidden_links,
+			"is_customized": True
+		}
+	else:
+		# No customizations - return default from Workspace
+		try:
+			workspace = frappe.get_doc("Workspace", workspace_name)
+		except frappe.DoesNotExistError:
+			frappe.throw(_("Workspace {0} does not exist").format(workspace_name))
+
+		# Get shortcuts and filter by permissions
+		shortcuts = []
+		for link in workspace.links:
+			if link.type == "shortcut" and has_permission_for_workspace_link(link):
+				shortcuts.append({
+					"link_type": link.link_type or "DocType",
+					"link_to": link.link_to,
+					"label": link.label,
+					"icon": link.icon,
+					"is_custom": False
+				})
+
+		return {
+			"links": shortcuts,
+			"hidden_links": [],
+			"is_customized": False
+		}
+
+
+@frappe.whitelist()
+def save_user_sidebar(workspace_name, links, hidden_links=None):
+	"""
+	Save user's sidebar customizations for a public workspace.
+	Validates permissions for all links before saving.
+	"""
+	user = frappe.session.user
+	links = frappe.parse_json(links)
+	hidden_links = frappe.parse_json(hidden_links or "[]")
+
+	# Check workspace access first
+	if not can_access_workspace(workspace_name):
+		frappe.throw(_("You don't have permission to customize this workspace"))
+
+	# Ensure it's a public workspace
+	workspace_doc = frappe.get_doc("Workspace", workspace_name)
+	if not workspace_doc.public:
+		frappe.throw(_("Cannot customize private workspaces using this method. Edit the workspace directly."))
+
+	# Find existing or create new
+	existing = frappe.db.get_value(
+		"Workspace User Sidebar",
+		{"user": user, "workspace": workspace_name},
+		"name"
+	)
+
+	if existing:
+		doc = frappe.get_doc("Workspace User Sidebar", existing)
+	else:
+		doc = frappe.new_doc("Workspace User Sidebar")
+		doc.user = user
+		doc.workspace = workspace_name
+
+	# Clear existing links
+	doc.sidebar_links = []
+
+	# Add links with proper idx and permission validation
+	for idx, link in enumerate(links, start=1):
+		# Validate user has permission for this link
+		if not has_permission_for_link_dict(link):
+			frappe.throw(_(f"You don't have permission to add {link.get('label')} to sidebar"))
+
+		doc.append("sidebar_links", {
+			"link_type": link.get("link_type"),
+			"link_to": link.get("link_to"),
+			"label": link.get("label"),
+			"icon": link.get("icon"),
+			"idx": idx,
+			"is_custom": link.get("is_custom", 0)
+		})
+
+	doc.hidden_default_links = frappe.as_json(hidden_links)
+	doc.save(ignore_permissions=True)  # We already validated permissions above
+
+	return {"success": True, "message": _("Sidebar customizations saved")}
+
+
+@frappe.whitelist()
+def reset_user_sidebar(workspace_name):
+	"""Remove user's sidebar customizations and revert to default"""
+	user = frappe.session.user
+
+	existing = frappe.db.get_value(
+		"Workspace User Sidebar",
+		{"user": user, "workspace": workspace_name},
+		"name"
+	)
+
+	if existing:
+		frappe.delete_doc("Workspace User Sidebar", existing, ignore_permissions=True)
+		return {"success": True, "message": _("Sidebar reset to default")}
+
+	return {"success": False, "message": _("No customizations found")}
+
+
+# ======================================
+# Workspace Creation and Duplication
+# ======================================
+
+@frappe.whitelist()
+def create_private_workspace(title, icon=None, based_on=None):
+	"""
+	Create a new private workspace for the current user.
+	Optionally based on a template workspace.
+	"""
+	user = frappe.session.user
+
+	# Generate unique label for private workspace
+	label = f"{title}-{user}"
+
+	# Check if workspace with this label already exists
+	if frappe.db.exists("Workspace", label):
+		frappe.throw(_("You already have a workspace with this name"))
+
+	# Create new workspace
+	doc = frappe.new_doc("Workspace")
+	doc.title = title
+	doc.label = label
+	doc.public = 0
+	doc.for_user = user
+	doc.icon = icon or "folder"
+	doc.module = ""  # Remove module restriction for private workspaces
+
+	# If based on a template, copy content
+	if based_on:
+		try:
+			template = frappe.get_doc("Workspace", based_on)
+
+			# Copy content (EditorJS JSON)
+			if template.content:
+				doc.content = template.content
+
+			# Copy shortcuts
+			for shortcut in template.shortcuts:
+				if has_permission_for_workspace_link(shortcut):
+					doc.append("shortcuts", {
+						"type": shortcut.type,
+						"link_to": shortcut.link_to,
+						"label": shortcut.label,
+						"icon": shortcut.icon,
+						"doc_view": shortcut.doc_view,
+						"color": shortcut.color,
+						"format": shortcut.format,
+						"stats_filter": shortcut.stats_filter
+					})
+
+			# Copy links
+			for link in template.links:
+				if has_permission_for_workspace_link(link):
+					doc.append("links", {
+						"type": link.type,
+						"link_type": link.link_type,
+						"link_to": link.link_to,
+						"label": link.label,
+						"icon": link.icon,
+						"description": link.description,
+						"is_query_report": link.is_query_report,
+						"onboard": link.onboard
+					})
+
+			# Copy charts
+			for chart in template.charts:
+				doc.append("charts", {
+					"chart_name": chart.chart_name,
+					"label": chart.label
+				})
+
+			# Copy number cards
+			for card in template.number_cards:
+				doc.append("number_cards", {
+					"document_type": card.document_type,
+					"label": card.label,
+					"function": card.function,
+					"aggregate_function_based_on": card.aggregate_function_based_on,
+					"filters_json": card.filters_json,
+					"stats_time_interval": card.stats_time_interval
+				})
+
+		except Exception as e:
+			frappe.log_error(f"Error copying workspace template: {str(e)}", "Workspace Creation Error")
+			# Continue with blank workspace if template copy fails
+
+	doc.insert(ignore_permissions=True)
+
+	return {
+		"success": True,
+		"message": _("Workspace created successfully"),
+		"workspace": {
+			"name": doc.name,
+			"label": doc.label,
+			"title": doc.title,
+			"icon": doc.icon
+		}
+	}
+
+
+@frappe.whitelist()
+def duplicate_workspace_to_private(workspace_name, new_title=None):
+	"""
+	Duplicate a public workspace as a private workspace for current user.
+	This creates a full copy including content, links, and all widgets.
+	"""
+	user = frappe.session.user
+
+	# Check if user has access to source workspace
+	if not can_access_workspace(workspace_name):
+		frappe.throw(_("You don't have permission to access this workspace"))
+
+	# Get source workspace
+	source = frappe.get_doc("Workspace", workspace_name)
+
+	# Determine title for new workspace
+	if not new_title:
+		new_title = f"{source.title} (Copy)"
+
+	# Create using create_private_workspace with template
+	return create_private_workspace(
+		title=new_title,
+		icon=source.icon,
+		based_on=workspace_name
+	)
+
+
+@frappe.whitelist()
+def get_permitted_link_options():
+	"""
+	Get list of all DocTypes, Pages, and Reports user has access to.
+	Used for "Add Link" dialog.
+	"""
+	permitted_items = {
+		"doctypes": [],
+		"pages": [],
+		"reports": []
+	}
+
+	# Get permitted DocTypes
+	for doctype in frappe.get_all("DocType", filters={"issingle": 0, "istable": 0}, fields=["name"]):
+		if frappe.has_permission(doctype.name, ptype="read"):
+			permitted_items["doctypes"].append({
+				"value": doctype.name,
+				"label": doctype.name
+			})
+
+	# Get permitted Pages
+	user_roles = frappe.get_roles()
+	for page in frappe.get_all("Page", fields=["name", "title"]):
+		try:
+			page_doc = frappe.get_doc("Page", page.name)
+			if not page_doc.roles or any(role.role in user_roles for role in page_doc.roles):
+				permitted_items["pages"].append({
+					"value": page.name,
+					"label": page.title or page.name
+				})
+		except:
+			continue
+
+	# Get permitted Reports
+	for report in frappe.get_all("Report", fields=["name", "ref_doctype"]):
+		try:
+			if report.ref_doctype:
+				if frappe.has_permission(report.ref_doctype, ptype="read"):
+					permitted_items["reports"].append({
+						"value": report.name,
+						"label": report.name
+					})
+			else:
+				# Check report roles
+				report_doc = frappe.get_doc("Report", report.name)
+				if not report_doc.roles or any(role.role in user_roles for role in report_doc.roles):
+					permitted_items["reports"].append({
+						"value": report.name,
+						"label": report.name
+					})
+		except:
+			continue
+
+	return permitted_items
+
+
+# ======================================
+# Helper Functions for Permissions
+# ======================================
+
+def can_access_workspace(workspace_name):
+	"""Check if current user can access this workspace"""
+	try:
+		workspace = frappe.get_doc("Workspace", workspace_name)
+
+		# Check if workspace is public
+		if workspace.public:
+			# Check module-based permissions if module is set
+			if workspace.module:
+				# User needs access to the module
+				has_module_access = frappe.has_permission(workspace.module, ptype="read")
+				if not has_module_access:
+					return False
+
+			# Check role-based restrictions if roles are set
+			if workspace.roles:
+				user_roles = frappe.get_roles()
+				workspace_roles = [role.role for role in workspace.roles]
+				if not any(role in workspace_roles for role in user_roles):
+					return False
+
+			return True
+		else:
+			# Private workspace - only owner or Workspace Manager can access
+			return workspace.for_user == frappe.session.user or frappe.has_role("Workspace Manager")
+
+	except frappe.PermissionError:
+		return False
+
+
+def has_permission_for_workspace_link(link):
+	"""Check permission for Workspace Link (from Workspace DocType)"""
+	link_type = link.link_type or "DocType"
+	link_to = link.link_to
+
+	if not link_to:
+		return False
+
+	return _check_link_permission(link_type, link_to)
+
+
+def has_permission_for_sidebar_link(link):
+	"""Check permission for Workspace User Sidebar Link"""
+	return _check_link_permission(link.link_type, link.link_to)
+
+
+def has_permission_for_link_dict(link_dict):
+	"""Check permission for dictionary-style link"""
+	return _check_link_permission(link_dict.get("link_type"), link_dict.get("link_to"))
+
+
+def _check_link_permission(link_type, link_to):
+	"""
+	Core permission checking logic for any link type.
+	Returns True if accessible, False if not.
+	"""
+	if not link_to:
+		return False
+
+	try:
+		if link_type == "DocType":
+			# Check if user has read permission for this DocType
+			return frappe.has_permission(link_to, ptype="read") or False
+
+		elif link_type == "Page":
+			# Check if page exists and user can access it
+			if not frappe.db.exists("Page", link_to):
+				return False
+
+			page = frappe.get_doc("Page", link_to)
+
+			# Check if page has roles defined
+			if page.roles:
+				user_roles = frappe.get_roles()
+				page_roles = [role.role for role in page.roles]
+				return any(role in page_roles for role in user_roles)
+
+			# If no roles defined, page is public
+			return True
+
+		elif link_type == "Report":
+			# Check if report exists
+			if not frappe.db.exists("Report", link_to):
+				return False
+
+			report = frappe.get_doc("Report", link_to)
+
+			# Check report permissions based on ref_doctype
+			if report.ref_doctype:
+				return frappe.has_permission(report.ref_doctype, ptype="read") or False
+
+			# Check if user has roles assigned to report
+			if report.roles:
+				user_roles = frappe.get_roles()
+				report_roles = [role.role for role in report.roles]
+				return any(role in report_roles for role in user_roles)
+
+			return True
+
+		elif link_type == "URL":
+			# Custom URLs don't have permission checks
+			return True
+
+		else:
+			# Unknown link type - deny by default
+			return False
+
+	except Exception as e:
+		# Log error but don't expose to user
+		frappe.log_error(f"Permission check failed for {link_type}: {link_to}", "Sidebar Permission Error")
+		return False

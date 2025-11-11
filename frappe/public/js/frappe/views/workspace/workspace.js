@@ -237,12 +237,7 @@ frappe.views.Workspace = class Workspace {
 				</svg>
 				<span class="hidden-xs" data-label="New">${__("New")}</span>
 			</button>
-			<button class="btn btn-default btn-sm mr-2 btn-edit-workspace" data-label="Edit">
-				<svg class="es-icon es-line  icon-xs" style="" aria-hidden="true">
-					<use class="" href="#es-line-edit"></use>
-				</svg>
-				<span class="hidden-xs" data-label="Edit">${__("Edit")}</span>
-			</button>
+			<!-- Edit button removed - use window edit buttons instead -->
 		</div>
 	`).appendTo(this.body);
 
@@ -250,19 +245,7 @@ frappe.views.Workspace = class Workspace {
 			this.initialize_new_page(true);
 		});
 
-		this.body.find(".btn-edit-workspace").on("click", async () => {
-			if (!this.editor || !this.editor.readOnly) return;
-			this.is_read_only = false;
-			this.toggle_hidden_workspaces(true);
-			await this.editor.readOnly.toggle();
-			this.editor.isReady.then(() => {
-				this.body.addClass("edit-mode");
-				this.initialize_editorjs_undo();
-				this.setup_customization_buttons(this._page);
-				this.show_sidebar_actions();
-				this.make_blocks_sortable();
-			});
-		});
+		// Old edit button handler removed - editing is now done per-window
 	}
 
 	get_pages() {
@@ -1626,6 +1609,7 @@ frappe.views.Workspace = class Workspace {
 					</div>
 					<div class="window-controls">
 						<button class="btn-window-back" title="Back" style="display: none;">←</button>
+						<button class="btn-window-edit" title="Edit Workspace">✎</button>
 						<button class="btn-window-minimize" title="Minimize">_</button>
 						<button class="btn-window-maximize" title="Maximize">□</button>
 						<button class="btn-window-close" title="Close">×</button>
@@ -1721,6 +1705,10 @@ frappe.views.Workspace = class Workspace {
 
 		$window.find(".btn-window-back").on("click", () => {
 			this.show_workspace_content_in_window($window);
+		});
+
+		$window.find(".btn-window-edit").on("click", async () => {
+			await this.toggle_window_edit_mode($window, page);
 		});
 
 		// Load workspace content
@@ -1927,21 +1915,51 @@ frappe.views.Workspace = class Workspace {
 	}
 
 	build_window_sidebar($window, page) {
+		const self = this;
+		const $sidebar = $window.find(".window-sidebar");
+		$sidebar.empty();
+		$sidebar.html('<div class="sidebar-loading">Loading sidebar...</div>');
+
+		// Get sidebar links from backend API (with permission filtering)
+		frappe.call({
+			method: "frappe.desk.desktop.get_user_sidebar_links",
+			args: {
+				workspace_name: page.name
+			},
+			callback: (r) => {
+				if (r.message) {
+					self.render_sidebar($window, page, r.message);
+				} else {
+					$sidebar.html('<div class="sidebar-empty">No shortcuts available</div>');
+				}
+			},
+			error: () => {
+				$sidebar.html('<div class="sidebar-error">Failed to load sidebar</div>');
+			}
+		});
+	}
+
+	render_sidebar($window, page, sidebar_data) {
 		const $sidebar = $window.find(".window-sidebar");
 		$sidebar.empty();
 
-		// Get shortcuts data from page_data
-		const page_data = this.pages[page.name];
-		if (!page_data || !page_data.shortcuts || !page_data.shortcuts.items || page_data.shortcuts.items.length === 0) {
-			// No shortcuts to display
+		const links = sidebar_data.links || [];
+		const is_customized = sidebar_data.is_customized || false;
+
+		if (links.length === 0) {
 			$sidebar.html('<div class="sidebar-empty">No shortcuts available</div>');
 			return;
 		}
 
-		// Create sidebar header
+		// Create sidebar header with edit button
 		const header_html = `
 			<div class="sidebar-header">
 				<h5>${page.name}</h5>
+				<button class="btn btn-xs btn-edit-sidebar" title="Edit Sidebar">
+					<svg class="icon icon-xs">
+						<use href="#icon-edit"></use>
+					</svg>
+				</button>
 			</div>
 		`;
 		$sidebar.append(header_html);
@@ -1949,36 +1967,42 @@ frappe.views.Workspace = class Workspace {
 		// Create sidebar links container
 		const $links_container = $('<div class="sidebar-links"></div>');
 
-		// Build each shortcut link
-		page_data.shortcuts.items.forEach((shortcut) => {
-			if (!shortcut.link_to || shortcut.hidden) {
-				return; // Skip hidden or invalid shortcuts
+		// Build each link
+		links.forEach((link) => {
+			if (!link.link_to) {
+				return; // Skip invalid links
 			}
 
-			const icon = shortcut.icon || 'file';
-			const label = shortcut.label || shortcut.link_to;
-			// Create unique ID for this link (used for saving order)
-			const link_id = `${shortcut.link_type}-${frappe.router.slug(shortcut.link_to)}`;
+			const icon = link.icon || 'file';
+			const label = link.label || link.link_to;
+			// Create unique ID for this link
+			const link_id = `${link.link_type}-${frappe.router.slug(link.link_to)}`;
 
 			// Determine the route based on link type
 			let route = '';
-			if (shortcut.link_type === 'DocType') {
-				route = `/app/${frappe.router.slug(shortcut.link_to)}`;
-			} else if (shortcut.link_type === 'Page') {
-				route = `/app/${frappe.router.slug(shortcut.link_to)}`;
-			} else if (shortcut.link_type === 'Report') {
-				if (shortcut.is_query_report) {
-					route = `/app/query-report/${frappe.router.slug(shortcut.link_to)}`;
-				} else {
-					route = `/app/${frappe.router.slug(shortcut.link_to)}`;
-				}
+			if (link.link_type === 'DocType') {
+				route = `/app/${frappe.router.slug(link.link_to)}`;
+			} else if (link.link_type === 'Page') {
+				route = `/app/${frappe.router.slug(link.link_to)}`;
+			} else if (link.link_type === 'Report') {
+				route = `/app/query-report/${frappe.router.slug(link.link_to)}`;
+			} else if (link.link_type === 'URL') {
+				route = link.link_to; // Direct URL
 			} else {
-				// Default route
-				route = `/app/${frappe.router.slug(shortcut.link_to)}`;
+				route = `/app/${frappe.router.slug(link.link_to)}`;
 			}
 
+			const is_custom_class = link.is_custom ? 'is-custom-link' : '';
+
 			const link_html = `
-				<div class="sidebar-link is-draggable" data-link-id="${link_id}" data-route="${route}" data-link-to="${shortcut.link_to}" data-link-type="${shortcut.link_type}">
+				<div class="sidebar-link is-draggable ${is_custom_class}"
+				     data-link-id="${link_id}"
+				     data-route="${route}"
+				     data-link-to="${link.link_to}"
+				     data-link-type="${link.link_type}"
+				     data-label="${frappe.utils.escape_html(label)}"
+				     data-icon="${icon}"
+				     data-is-custom="${link.is_custom ? 1 : 0}">
 					<div class="drag-handle">
 						<svg class="icon icon-xs">
 							<use href="#icon-drag"></use>
@@ -1996,7 +2020,11 @@ frappe.views.Workspace = class Workspace {
 
 		$sidebar.append($links_container);
 
-		// Load and apply saved order
+		// Store sidebar metadata on window
+		$window.data("sidebar-customized", is_customized);
+		$window.data("sidebar-links", links);
+
+		// Load and apply localStorage saved order (for drag-drop Phase 2)
 		const saved_order = this.load_sidebar_order($window, page);
 		if (saved_order) {
 			this.apply_sidebar_order($window, saved_order);
@@ -2007,6 +2035,9 @@ frappe.views.Workspace = class Workspace {
 
 		// Enable drag-and-drop reordering
 		this.setup_sidebar_sortable($window, page);
+
+		// Add edit button handler
+		this.setup_edit_sidebar_button($window, page);
 	}
 
 	setup_sidebar_navigation($window) {
@@ -2136,6 +2167,291 @@ frappe.views.Workspace = class Workspace {
 			message: __("Sidebar order saved"),
 			indicator: "green"
 		}, 2);
+	}
+
+	// ======================================
+	// Edit Sidebar Mode (Phase 3)
+	// ======================================
+
+	setup_edit_sidebar_button($window, page) {
+		const self = this;
+		$window.find(".btn-edit-sidebar").off("click").on("click", function() {
+			self.enter_edit_mode($window, page);
+		});
+	}
+
+	enter_edit_mode($window, page) {
+		const $sidebar = $window.find(".window-sidebar");
+
+		// Add edit mode class
+		$sidebar.addClass("edit-mode");
+
+		// Replace header with edit controls
+		const header_html = `
+			<div class="sidebar-header edit-mode-header">
+				<h5>${page.name} - Edit</h5>
+				<div class="edit-controls">
+					<button class="btn btn-xs btn-add-link" title="Add Link">
+						<svg class="icon icon-xs"><use href="#icon-add"></use></svg>
+					</button>
+					<button class="btn btn-xs btn-save-sidebar" title="Save">
+						<svg class="icon icon-xs"><use href="#icon-save"></use></svg>
+					</button>
+					<button class="btn btn-xs btn-reset-sidebar" title="Reset">
+						<svg class="icon icon-xs"><use href="#icon-refresh"></use></svg>
+					</button>
+					<button class="btn btn-xs btn-cancel-edit" title="Cancel">
+						<svg class="icon icon-xs"><use href="#icon-close"></use></svg>
+					</button>
+				</div>
+			</div>
+		`;
+		$sidebar.find(".sidebar-header").replaceWith(header_html);
+
+		// Add remove buttons to each link
+		$sidebar.find(".sidebar-link").each(function() {
+			const $link = $(this);
+			if (!$link.find(".btn-remove-link").length) {
+				$link.append(`
+					<button class="btn-remove-link" title="Remove">
+						<svg class="icon icon-xs"><use href="#icon-close"></use></svg>
+					</button>
+				`);
+			}
+		});
+
+		// Setup edit mode handlers
+		this.setup_edit_mode_handlers($window, page);
+	}
+
+	setup_edit_mode_handlers($window, page) {
+		const self = this;
+
+		// Add link button
+		$window.find(".btn-add-link").off("click").on("click", function() {
+			self.show_add_link_dialog($window, page);
+		});
+
+		// Save button
+		$window.find(".btn-save-sidebar").off("click").on("click", function() {
+			self.save_sidebar_customizations($window, page);
+		});
+
+		// Reset button
+		$window.find(".btn-reset-sidebar").off("click").on("click", function() {
+			self.reset_sidebar_customizations($window, page);
+		});
+
+		// Cancel button
+		$window.find(".btn-cancel-edit").off("click").on("click", function() {
+			self.exit_edit_mode($window, page);
+		});
+
+		// Remove link buttons
+		$window.find(".btn-remove-link").off("click").on("click", function(e) {
+			e.stopPropagation();
+			$(this).closest(".sidebar-link").remove();
+		});
+	}
+
+	exit_edit_mode($window, page) {
+		// Reload sidebar to revert changes
+		this.build_window_sidebar($window, page);
+	}
+
+	save_sidebar_customizations($window, page) {
+		const links = [];
+
+		// Collect all links from DOM
+		$window.find(".sidebar-link").each(function() {
+			const $link = $(this);
+			links.push({
+				link_type: $link.data("link-type"),
+				link_to: $link.data("link-to"),
+				label: $link.data("label"),
+				icon: $link.data("icon"),
+				is_custom: $link.data("is-custom") ? 1 : 0
+			});
+		});
+
+		// Save to backend
+		frappe.call({
+			method: "frappe.desk.desktop.save_user_sidebar",
+			args: {
+				workspace_name: page.name,
+				links: links,
+				hidden_links: []
+			},
+			callback: (r) => {
+				if (r.message && r.message.success) {
+					frappe.show_alert({
+						message: r.message.message,
+						indicator: "green"
+					});
+					// Reload sidebar
+					this.build_window_sidebar($window, page);
+				}
+			},
+			error: () => {
+				frappe.show_alert({
+					message: __("Failed to save sidebar customizations"),
+					indicator: "red"
+				});
+			}
+		});
+	}
+
+	reset_sidebar_customizations($window, page) {
+		frappe.confirm(
+			__("Are you sure you want to reset sidebar to default?"),
+			() => {
+				frappe.call({
+					method: "frappe.desk.desktop.reset_user_sidebar",
+					args: {
+						workspace_name: page.name
+					},
+					callback: (r) => {
+						if (r.message && r.message.success) {
+							frappe.show_alert({
+								message: r.message.message,
+								indicator: "green"
+							});
+							// Reload sidebar
+							this.build_window_sidebar($window, page);
+						}
+					}// .bind(this)
+				});
+			}
+		);
+	}
+
+	show_add_link_dialog($window, page) {
+		const self = this;
+
+		// Get permitted link options from backend
+		frappe.call({
+			method: "frappe.desk.desktop.get_permitted_link_options",
+			callback: (r) => {
+				if (r.message) {
+					self.render_add_link_dialog($window, page, r.message);
+				}
+			}
+		});
+	}
+
+	render_add_link_dialog($window, page, options) {
+		const self = this;
+
+		const dialog = new frappe.ui.Dialog({
+			title: __("Add Link to Sidebar"),
+			fields: [
+				{
+					fieldname: "link_type",
+					fieldtype: "Select",
+					label: __("Link Type"),
+					options: ["DocType", "Page", "Report", "URL"],
+					reqd: 1,
+					onchange: function() {
+						const link_type = this.get_value();
+						dialog.get_field("link_to").df.hidden = link_type === "URL";
+						dialog.get_field("url").df.hidden = link_type !== "URL";
+						dialog.refresh();
+					}
+				},
+				{
+					fieldname: "link_to",
+					fieldtype: "Autocomplete",
+					label: __("Link To"),
+					options: [],
+					reqd: 1
+				},
+				{
+					fieldname: "url",
+					fieldtype: "Data",
+					label: __("URL"),
+					hidden: 1
+				},
+				{
+					fieldname: "label",
+					fieldtype: "Data",
+					label: __("Label"),
+					reqd: 1
+				},
+				{
+					fieldname: "icon",
+					fieldtype: "Data",
+					label: __("Icon"),
+					default: "file"
+				}
+			],
+			primary_action_label: __("Add"),
+			primary_action: (values) => {
+				self.add_link_to_sidebar($window, page, values);
+				dialog.hide();
+			}
+		});
+
+		// Setup autocomplete options based on link type
+		dialog.fields_dict.link_type.$input.on("change", function() {
+			const link_type = dialog.get_value("link_type");
+			let autocomplete_options = [];
+
+			if (link_type === "DocType") {
+				autocomplete_options = options.doctypes.map(d => d.value);
+			} else if (link_type === "Page") {
+				autocomplete_options = options.pages.map(p => p.value);
+			} else if (link_type === "Report") {
+				autocomplete_options = options.reports.map(r => r.value);
+			}
+
+			dialog.fields_dict.link_to.set_data(autocomplete_options);
+		});
+
+		dialog.show();
+	}
+
+	add_link_to_sidebar($window, page, values) {
+		const $links_container = $window.find(".sidebar-links");
+
+		const link_to = values.link_type === "URL" ? values.url : values.link_to;
+		const link_id = `${values.link_type}-${frappe.router.slug(link_to)}`;
+
+		// Create link HTML
+		const link_html = `
+			<div class="sidebar-link is-draggable is-custom-link"
+			     data-link-id="${link_id}"
+			     data-route="${link_to}"
+			     data-link-to="${link_to}"
+			     data-link-type="${values.link_type}"
+			     data-label="${frappe.utils.escape_html(values.label)}"
+			     data-icon="${values.icon}"
+			     data-is-custom="1">
+				<div class="drag-handle">
+					<svg class="icon icon-xs"><use href="#icon-drag"></use></svg>
+				</div>
+				<svg class="icon icon-sm sidebar-link-icon">
+					<use href="#icon-${values.icon}"></use>
+				</svg>
+				<span class="sidebar-link-label">${values.label}</span>
+				<button class="btn-remove-link" title="Remove">
+					<svg class="icon icon-xs"><use href="#icon-close"></use></svg>
+				</button>
+			</div>
+		`;
+
+		const $new_link = $(link_html);
+		$links_container.append($new_link);
+
+		// Setup remove handler for new link
+		$new_link.find(".btn-remove-link").on("click", function(e) {
+			e.stopPropagation();
+			$new_link.remove();
+		});
+
+		frappe.show_alert({
+			message: __("Link added. Click Save to persist changes."),
+			indicator: "blue"
+		});
 	}
 
 	setup_window_routing() {
@@ -2460,8 +2776,203 @@ frappe.views.Workspace = class Workspace {
 				readOnly: true,
 				logLevel: "ERROR",
 			});
+
+			// Store the editor instance for this window
+			const $window = $(`#${editor_id}`).closest('.workspace-window');
+			if ($window.length) {
+				$window.data("workspace-editor", editor);
+			}
+
+			return editor;
 		} catch (error) {
 			console.error("Error initializing editor:", error);
+			return null;
+		}
+	}
+
+	async toggle_window_edit_mode($window, page) {
+		const editor = $window.data("workspace-editor");
+
+		if (!editor) {
+			frappe.show_alert({
+				message: __("Editor not ready yet. Please try again."),
+				indicator: "orange"
+			});
+			return;
+		}
+
+		const isReadOnly = $window.data("is-read-only") !== false; // default to true
+
+		if (isReadOnly) {
+			// Enter edit mode
+			await editor.readOnly.toggle();
+			$window.data("is-read-only", false);
+			$window.addClass("window-edit-mode");
+
+			// Change edit button to save button
+			const $editBtn = $window.find(".btn-window-edit");
+			$editBtn.attr("title", "Save Changes").text("💾");
+
+			// Add cancel button
+			$editBtn.after(`<button class="btn-window-cancel-edit" title="Cancel">✕</button>`);
+
+			// Setup cancel button handler
+			$window.find(".btn-window-cancel-edit").on("click", async () => {
+				await this.cancel_window_edit_mode($window, page);
+			});
+
+			// Wait for editor to be ready, then make blocks sortable
+			editor.isReady.then(() => {
+				this.make_window_blocks_sortable($window, editor);
+			});
+
+			frappe.show_alert({
+				message: __("Edit mode enabled"),
+				indicator: "blue"
+			});
+		} else {
+			// Save and exit edit mode
+			await this.save_window_workspace($window, page, editor);
+		}
+	}
+
+	make_window_blocks_sortable($window, editor) {
+		// Find the editor container in this specific window
+		const editorContainer = $window.find(".codex-editor__redactor").get(0);
+
+		if (!editorContainer) {
+			console.warn("Editor container not found for sortable");
+			return;
+		}
+
+		// Create sortable instance
+		const sortable = Sortable.create(editorContainer, {
+			handle: ".drag-handle",
+			draggable: ".ce-block",
+			animation: 150,
+			onEnd: function (evt) {
+				editor.blocks.move(evt.newIndex, evt.oldIndex);
+			},
+			setData: function () {
+				// Do Nothing
+			},
+		});
+
+		// Store sortable instance so we can destroy it later
+		$window.data("window-sortable", sortable);
+	}
+
+	destroy_window_sortable($window) {
+		const sortable = $window.data("window-sortable");
+		if (sortable) {
+			sortable.destroy();
+			$window.removeData("window-sortable");
+		}
+	}
+
+	async cancel_window_edit_mode($window, page) {
+		const editor = $window.data("workspace-editor");
+
+		if (editor) {
+			await editor.readOnly.toggle();
+		}
+
+		// Destroy sortable
+		this.destroy_window_sortable($window);
+
+		$window.data("is-read-only", true);
+		$window.removeClass("window-edit-mode");
+
+		// Restore edit button
+		const $editBtn = $window.find(".btn-window-edit");
+		$editBtn.attr("title", "Edit Workspace").text("✎");
+
+		// Remove cancel button
+		$window.find(".btn-window-cancel-edit").remove();
+
+		// Reload content to discard changes
+		this.load_workspace_content(page, $window);
+
+		frappe.show_alert({
+			message: __("Edit cancelled"),
+			indicator: "orange"
+		});
+	}
+
+	async save_window_workspace($window, page, editor) {
+		try {
+			const outputData = await editor.save();
+
+			console.log("Output data blocks:", outputData.blocks);
+
+			// Extract new widgets from blocks
+			let new_widgets = {};
+
+			outputData.blocks.forEach((item) => {
+				console.log("Block type:", item.type, "Has new:", !!item.data.new, "Data:", item.data);
+				if (item.data.new) {
+					if (!new_widgets[item.type]) {
+						new_widgets[item.type] = [];
+					}
+					new_widgets[item.type].push(item.data.new);
+					delete item.data["new"];
+				}
+			});
+
+			console.log("New widgets extracted:", new_widgets);
+
+			// Filter out custom card types
+			let blocks = outputData.blocks.filter(
+				(item) =>
+					item.type != "card" ||
+					(item.data.card_name !== "Custom Documents" &&
+						item.data.card_name !== "Custom Reports")
+			);
+
+			console.log("Blocks to save:", blocks);
+			console.log("Calling save_page with:", {
+				title: page.name,
+				public: page.public ? 1 : 0,
+				new_widgets: new_widgets,
+				blocks: JSON.stringify(blocks)
+			});
+
+			// Save to backend using the correct method
+			await frappe.call({
+				method: "frappe.desk.doctype.workspace.workspace.save_page",
+				args: {
+					title: page.name,
+					public: page.public ? 1 : 0,
+					new_widgets: new_widgets,
+					blocks: JSON.stringify(blocks)
+				}
+			});
+
+			// Destroy sortable
+			this.destroy_window_sortable($window);
+
+			// Exit edit mode
+			await editor.readOnly.toggle();
+			$window.data("is-read-only", true);
+			$window.removeClass("window-edit-mode");
+
+			// Restore edit button
+			const $editBtn = $window.find(".btn-window-edit");
+			$editBtn.attr("title", "Edit Workspace").text("✎");
+
+			// Remove cancel button
+			$window.find(".btn-window-cancel-edit").remove();
+
+			frappe.show_alert({
+				message: __("Workspace saved successfully"),
+				indicator: "green"
+			});
+		} catch (error) {
+			console.error("Error saving workspace:", error);
+			frappe.show_alert({
+				message: __("Failed to save workspace"),
+				indicator: "red"
+			});
 		}
 	}
 
