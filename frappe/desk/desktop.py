@@ -755,7 +755,10 @@ def update_onboarding_step(name, field, value):
 def get_user_sidebar_links(workspace_name):
 	"""
 	Get sidebar links for a workspace with permission filtering.
-	Returns custom links if user has customized, otherwise returns defaults.
+	Returns links in this order of priority:
+	1. User's Workspace User Sidebar (if customized)
+	2. Default Workspace Sidebar (if configured by admin)
+	3. Workspace's built-in shortcuts (fallback)
 	"""
 	user = frappe.session.user
 
@@ -763,7 +766,7 @@ def get_user_sidebar_links(workspace_name):
 	if not can_access_workspace(workspace_name):
 		frappe.throw(_("You don't have permission to access this workspace"))
 
-	# Check if user has customizations for this PUBLIC workspace
+	# Priority 1: Check if user has customizations for this workspace
 	custom_sidebar_name = frappe.db.get_value(
 		"Workspace User Sidebar",
 		{"user": user, "workspace": workspace_name},
@@ -794,30 +797,65 @@ def get_user_sidebar_links(workspace_name):
 			"hidden_links": hidden_links,
 			"is_customized": True
 		}
-	else:
-		# No customizations - return default from Workspace
+
+	# Priority 2: Check if there's a Default Workspace Sidebar for this workspace
+	default_sidebar_name = frappe.db.get_value(
+		"Default Workspace Sidebar",
+		{"workspace": workspace_name},
+		"name"
+	)
+
+	if default_sidebar_name:
+		# Admin has configured default sidebar - return it filtered by permissions
 		try:
-			workspace = frappe.get_doc("Workspace", workspace_name)
+			default_doc = frappe.get_doc("Default Workspace Sidebar", default_sidebar_name)
+
+			# Filter links based on current permissions
+			accessible_links = []
+			for link in default_doc.sidebar_links:
+				if has_permission_for_sidebar_link(link):
+					accessible_links.append({
+						"link_type": link.link_type,
+						"link_to": link.link_to,
+						"label": link.label,
+						"icon": link.icon,
+						"is_custom": False,
+						"idx": link.idx
+					})
+
+			return {
+				"links": accessible_links,
+				"hidden_links": [],
+				"is_customized": False,
+				"is_default": True
+			}
 		except frappe.DoesNotExistError:
-			frappe.throw(_("Workspace {0} does not exist").format(workspace_name))
+			pass  # Fall through to workspace shortcuts
 
-		# Get shortcuts and filter by permissions
-		shortcuts = []
-		for link in workspace.links:
-			if link.type == "shortcut" and has_permission_for_workspace_link(link):
-				shortcuts.append({
-					"link_type": link.link_type or "DocType",
-					"link_to": link.link_to,
-					"label": link.label,
-					"icon": link.icon,
-					"is_custom": False
-				})
+	# Priority 3: Fallback to Workspace's built-in shortcuts
+	try:
+		workspace = frappe.get_doc("Workspace", workspace_name)
+	except frappe.DoesNotExistError:
+		frappe.throw(_("Workspace {0} does not exist").format(workspace_name))
 
-		return {
-			"links": shortcuts,
-			"hidden_links": [],
-			"is_customized": False
-		}
+	# Get shortcuts and filter by permissions
+	shortcuts = []
+	for link in workspace.links:
+		if link.type == "shortcut" and has_permission_for_workspace_link(link):
+			shortcuts.append({
+				"link_type": link.link_type or "DocType",
+				"link_to": link.link_to,
+				"label": link.label,
+				"icon": link.icon,
+				"is_custom": False
+			})
+
+	return {
+		"links": shortcuts,
+		"hidden_links": [],
+		"is_customized": False,
+		"is_default": False
+	}
 
 
 @frappe.whitelist()

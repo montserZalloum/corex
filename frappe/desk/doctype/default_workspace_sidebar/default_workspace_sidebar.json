@@ -1,0 +1,74 @@
+{
+  "actions": [],
+  "allow_rename": 0,
+  "autoname": "field:workspace",
+  "creation": "2025-11-12 10:00:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "workspace",
+    "section_break_links",
+    "sidebar_links"
+  ],
+  "fields": [
+    {
+      "fieldname": "workspace",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "label": "Workspace",
+      "options": "Workspace",
+      "reqd": 1,
+      "unique": 1,
+      "description": "Select a public workspace to configure default sidebar links for"
+    },
+    {
+      "fieldname": "section_break_links",
+      "fieldtype": "Section Break",
+      "label": "Default Sidebar Links"
+    },
+    {
+      "fieldname": "sidebar_links",
+      "fieldtype": "Table",
+      "label": "Sidebar Links",
+      "options": "Workspace User Sidebar Link",
+      "description": "Define the default sidebar links that users will see when they have not customized this workspace"
+    }
+  ],
+  "index_web_pages_for_search": 1,
+  "links": [
+    {
+      "link_doctype": "Workspace",
+      "link_field": "name"
+    }
+  ],
+  "modified": "2025-11-12 10:00:00.000000",
+  "modified_by": "Administrator",
+  "module": "Desk",
+  "name": "Default Workspace Sidebar",
+  "naming_rule": "Expression",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "create": 1,
+      "delete": 1,
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "System Manager",
+      "share": 1,
+      "write": 1
+    },
+    {
+      "read": 1,
+      "role": "All",
+      "if_owner": 0
+    }
+  ],
+  "quick_entry": 1,
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "states": [],
+  "track_changes": 1
+}
