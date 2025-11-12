@@ -19,9 +19,10 @@ class WorkspaceUserSidebar(Document):
 
 		workspace_doc = frappe.get_doc("Workspace", self.workspace)
 
-		# Only allow customization of public workspaces
+		# For private workspaces, ensure user owns it
 		if not workspace_doc.public:
-			frappe.throw(_("Cannot customize private workspaces using Workspace User Sidebar. Edit the workspace directly."))
+			if workspace_doc.for_user != frappe.session.user:
+				frappe.throw(_("You can only customize private workspaces that you own"), frappe.PermissionError)
 
 		# Validate all links have permission
 		self.validate_link_permissions()

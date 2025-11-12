@@ -834,10 +834,13 @@ def save_user_sidebar(workspace_name, links, hidden_links=None):
 	if not can_access_workspace(workspace_name):
 		frappe.throw(_("You don't have permission to customize this workspace"))
 
-	# Ensure it's a public workspace
+	# Get workspace doc for validation
 	workspace_doc = frappe.get_doc("Workspace", workspace_name)
+
+	# For private workspaces, ensure user owns it
 	if not workspace_doc.public:
-		frappe.throw(_("Cannot customize private workspaces using this method. Edit the workspace directly."))
+		if workspace_doc.for_user != user:
+			frappe.throw(_("You can only customize private workspaces that you own"), frappe.PermissionError)
 
 	# Find existing or create new
 	existing = frappe.db.get_value(
