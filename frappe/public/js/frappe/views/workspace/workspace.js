@@ -268,6 +268,7 @@ frappe.views.Workspace = class Workspace {
 				class="sidebar-item-container ${item.is_editable ? "is-draggable" : ""}"
 				item-parent="${item.parent_page}"
 				item-name="${item.title}"
+				item-id="${item.name}"
 				item-public="${item.public || 0}"
 				item-is-hidden="${item.is_hidden || 0}"
 			>
@@ -278,7 +279,7 @@ frappe.views.Workspace = class Workspace {
 								? frappe.router.slug(item.title)
 								: "private/" + frappe.router.slug(item.title)
 						}"
-						class="item-anchor ${item.is_editable ? "" : "block-click"}" title="${__(item.title)}"
+						class="item-anchor ${item.is_editable ? "" : "block-click"}" title="${__(item.title)}" data-workspace-id="${item.name}"
 					>
 						<span class="sidebar-item-icon" item-icon=${item.icon || "folder-normal"}>
 							${
@@ -360,10 +361,11 @@ frappe.views.Workspace = class Workspace {
 
 			// Open workspace in a window instead of navigating
 			const $anchor = $(e.currentTarget);
-			const page_title = $anchor.attr("title");
+			const workspace_id = $anchor.attr("data-workspace-id"); // Use internal workspace name (e.g., "my-admin")
+			const page_title = $anchor.attr("title"); // For display only
 			const is_public = $anchor.closest(".sidebar-item-container").attr("item-public") === "1";
 
-			this.open_workspace_window({ name: page_title, public: is_public });
+			this.open_workspace_window({ name: workspace_id, public: is_public, title: page_title });
 		});
 
 		if (
@@ -479,7 +481,7 @@ frappe.views.Workspace = class Workspace {
 		) {
 			let $sidebar = this.sidebar_items[section][page.name];
 			let pages = page.public ? this.public_pages : this.private_pages;
-			let sidebar_page = pages.find((p) => p.title == page.name);
+			let sidebar_page = pages.find((p) => p.name == page.name);  // Compare by internal workspace name
 
 			if (add) {
 				$sidebar[0].firstElementChild.classList.add("selected");
@@ -601,7 +603,7 @@ frappe.views.Workspace = class Workspace {
 
 	setup_actions(page) {
 		let pages = page.public ? this.public_pages : this.private_pages;
-		let current_page = pages.filter((p) => p.title == page.name)[0];
+		let current_page = pages.filter((p) => p.name == page.name)[0];  // Filter by internal workspace name
 
 		if (!this.is_read_only) {
 			this.setup_customization_buttons(current_page);
@@ -1608,18 +1610,22 @@ frappe.views.Workspace = class Workspace {
 
 	open_workspace_window(page) {
 		// Create a unique window ID for this workspace
-		const window_id = `workspace-window-${frappe.router.slug(page.name)}-${Date.now()}`;
+		// Use timestamp + random to avoid issues with special characters in workspace names (like @ in emails)
+		const window_id = `workspace-window-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
 		// Increment z-index for new windows (always on top)
 		this.window_z_index += 1;
 		const current_z_index = this.window_z_index;
+
+		// Display title: use provided title or fall back to name
+		const display_title = page.title || page.name;
 
 		// Create window container with inner content area
 		const $window = $(`
 			<div class="workspace-window" id="${window_id}" data-page-name="${page.name}" data-page-public="${page.public}" style="z-index: ${current_z_index};">
 				<div class="window-titlebar">
 					<div class="window-breadcrumb">
-						<span class="window-title">${page.name}</span>
+						<span class="window-title">${display_title}</span>
 						<span class="breadcrumb-trail" style="display: none;"></span>
 					</div>
 					<div class="window-controls">
@@ -1632,7 +1638,7 @@ frappe.views.Workspace = class Workspace {
 				</div>
 				<div class="window-content">
 					<div class="window-loader" style="text-align: center; padding: 20px;">
-						<p>Loading ${page.name}...</p>
+						<p>Loading ${display_title}...</p>
 					</div>
 				</div>
 				<!-- Resize handles -->
@@ -2064,7 +2070,7 @@ frappe.views.Workspace = class Workspace {
 
 	load_workspace_content(page, $window) {
 		let pages = page.public ? this.public_pages : this.private_pages;
-		let current_page = pages.filter((p) => p.title == page.name)[0];
+		let current_page = pages.filter((p) => p.name == page.name)[0];  // Filter by internal workspace name
 		this._page = current_page;
 		this.content = current_page && JSON.parse(current_page.content);
 
@@ -2089,7 +2095,8 @@ frappe.views.Workspace = class Workspace {
 
 		// Create sidebar + main content layout
 		const sidebar_html = `<div class="window-sidebar"></div>`;
-		const editor_id = `window-editor-${frappe.router.slug(page.name)}-${Date.now()}`;
+		// Generate a safe ID that doesn't contain special characters (@ from email, etc.)
+		const editor_id = `window-editor-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 		const main_html = `<div class="window-main">
 			<div id="${editor_id}" class="desk-page page-main-content" style="padding: 15px;"></div>
 		</div>`;
@@ -2149,9 +2156,10 @@ frappe.views.Workspace = class Workspace {
 		}
 
 		// Create sidebar header (no separate edit button - use window edit button instead)
+		const display_title = page.title || page.name;  // Use user-friendly title if available
 		const header_html = `
 			<div class="sidebar-header">
-				<h5>${page.name}</h5>
+				<h5>${display_title}</h5>
 			</div>
 		`;
 		$sidebar.append(header_html);
@@ -2373,6 +2381,7 @@ frappe.views.Workspace = class Workspace {
 
 	enter_sidebar_edit_mode($window, page) {
 		const $sidebar = $window.find(".window-sidebar");
+		const display_title = page.title || page.name;  // Use user-friendly title
 
 		// Add edit mode class
 		$sidebar.addClass("edit-mode");
@@ -2388,7 +2397,7 @@ frappe.views.Workspace = class Workspace {
 			// Add header with edit controls
 			const header_html = `
 				<div class="sidebar-header edit-mode-header">
-					<h5>${page.name} - Edit</h5>
+					<h5>${display_title} - Edit</h5>
 					<div class="edit-controls">
 						<button class="btn btn-xs btn-add-link" title="Add Link">
 							<svg class="icon icon-xs"><use href="#icon-add"></use></svg>
@@ -2413,7 +2422,7 @@ frappe.views.Workspace = class Workspace {
 			// Replace existing header with edit controls
 			const header_html = `
 				<div class="sidebar-header edit-mode-header">
-					<h5>${page.name} - Edit</h5>
+					<h5>${display_title} - Edit</h5>
 					<div class="edit-controls">
 						<button class="btn btn-xs btn-add-link" title="Add Link">
 							<svg class="icon icon-xs"><use href="#icon-add"></use></svg>
