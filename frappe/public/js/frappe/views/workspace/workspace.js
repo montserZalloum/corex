@@ -186,7 +186,7 @@ frappe.views.Workspace = class Workspace {
 		this.has_create_access = this.sidebar_pages.has_create_access;
 
 		this.all_pages.forEach((page) => {
-			page.is_editable = !page.public || this.has_access;
+			page.is_editable = (!page.public && page.for_user === frappe.session.user) || this.has_access;
 		});
 
 		this.public_pages = this.all_pages.filter((page) => page.public);
@@ -315,6 +315,25 @@ frappe.views.Workspace = class Workspace {
 			this.build_sidebar_section(category, root_pages);
 		});
 
+		// Register workspace anchor click handler once using event delegation
+		// This prevents duplicate handlers from being registered multiple times
+		// (previously was being registered in build_sidebar_section, causing double-opens)
+		this.sidebar.off("click", ".item-anchor").on("click", ".item-anchor", (e) => {
+			e.preventDefault();
+			// Close sidebar
+			$(".list-sidebar.hidden-xs.hidden-sm").removeClass("opened");
+			$(".close-sidebar").css("display", "none");
+			$("body").css("overflow", "auto");
+
+			// Open workspace in a window instead of navigating
+			const $anchor = $(e.currentTarget);
+			const workspace_id = $anchor.attr("data-workspace-id"); // Use internal workspace name (e.g., "my-admin")
+			const page_title = $anchor.attr("title"); // For display only
+			const is_public = $anchor.closest(".sidebar-item-container").attr("item-public") === "1";
+
+			this.open_workspace_window({ name: workspace_id, public: is_public, title: page_title });
+		});
+
 		// Scroll sidebar to selected page if it is not in viewport.
 		this.sidebar.find(".selected").length &&
 			!frappe.dom.is_element_in_viewport(this.sidebar.find(".selected")) &&
@@ -351,22 +370,6 @@ frappe.views.Workspace = class Workspace {
 		if (Object.keys(root_pages).length === 0) {
 			sidebar_section.addClass("hidden");
 		}
-
-		$(".item-anchor").on("click", (e) => {
-			e.preventDefault();
-			// Close sidebar
-			$(".list-sidebar.hidden-xs.hidden-sm").removeClass("opened");
-			$(".close-sidebar").css("display", "none");
-			$("body").css("overflow", "auto");
-
-			// Open workspace in a window instead of navigating
-			const $anchor = $(e.currentTarget);
-			const workspace_id = $anchor.attr("data-workspace-id"); // Use internal workspace name (e.g., "my-admin")
-			const page_title = $anchor.attr("title"); // For display only
-			const is_public = $anchor.closest(".sidebar-item-container").attr("item-public") === "1";
-
-			this.open_workspace_window({ name: workspace_id, public: is_public, title: page_title });
-		});
 
 		if (
 			sidebar_section.find(".sidebar-item-container").length &&
@@ -1160,7 +1163,7 @@ frappe.views.Workspace = class Workspace {
 				new_page.indicator_color = values.indicator_color;
 				new_page.parent_page = values.parent || "";
 				new_page.for_user = new_page.public ? "" : frappe.session.user;
-				new_page.is_editable = !new_page.public;
+				new_page.is_editable = (!new_page.public && new_page.for_user === frappe.session.user) || this.has_access;
 				new_page.selected = true;
 
 				this.update_cached_values(page, new_page, true);
@@ -1630,7 +1633,7 @@ frappe.views.Workspace = class Workspace {
 					</div>
 					<div class="window-controls">
 						<button class="btn-window-back" title="Back" style="display: none;">←</button>
-						<button class="btn-window-edit" title="Edit Workspace">✎</button>
+						<button class="btn-window-edit" title="Edit Workspace" style="${page.public && !this.has_access ? 'display: none;' : ''}">✎</button>
 						<button class="btn-window-minimize" title="Minimize">_</button>
 						<button class="btn-window-maximize" title="Maximize">□</button>
 						<button class="btn-window-close" title="Close">×</button>
@@ -1845,7 +1848,7 @@ frappe.views.Workspace = class Workspace {
 			frappe.call({
 				method: "frappe.desk.doctype.workspace.workspace.save_page",
 				args: {
-					title: page.name,
+					title: page.title,
 					public: page.public ? 1 : 0,
 					new_widgets: new_widgets,
 					blocks: JSON.stringify(blocks)
@@ -2193,9 +2196,10 @@ frappe.views.Workspace = class Workspace {
 			}
 
 			const is_custom_class = link.is_custom ? 'is-custom-link' : '';
+		const is_draggable_class = !page.public ? 'is-draggable' : '';
 
 			const link_html = `
-				<div class="sidebar-link is-draggable ${is_custom_class}"
+				<div class="sidebar-link ${is_draggable_class} ${is_custom_class}"
 				     data-link-id="${link_id}"
 				     data-route="${route}"
 				     data-link-to="${link.link_to}"
@@ -2278,7 +2282,8 @@ frappe.views.Workspace = class Workspace {
 		const self = this;
 		const $linksContainer = $window.find(".sidebar-links");
 
-		if (!$linksContainer.length) return;
+		// Skip sortable setup for public workspaces (sidebar is not customizable)
+		if (page.public || !$linksContainer.length) return;
 
 		// Initialize Sortable.js
 		new Sortable($linksContainer[0], {
@@ -3060,7 +3065,8 @@ frappe.views.Workspace = class Workspace {
 				this.make_window_blocks_sortable($window, editor);
 			});
 
-			// ALSO enter edit mode for the sidebar
+		// ALSO enter edit mode for the sidebar (only for private workspaces)
+		if (!page.public) {
 			this.enter_sidebar_edit_mode($window, page);
 
 			frappe.show_alert({
@@ -3068,6 +3074,13 @@ frappe.views.Workspace = class Workspace {
 				indicator: "blue"
 			});
 		} else {
+			// For public workspaces, only allow content editing, not sidebar customization
+			frappe.show_alert({
+				message: __("Edit mode enabled (content only)"),
+				indicator: "blue"
+			});
+		}
+	} else {
 			// Save both workspace content AND sidebar customizations
 			await this.save_both_workspace_and_sidebar($window, page, editor);
 		}
@@ -3112,13 +3125,15 @@ frappe.views.Workspace = class Workspace {
 			// Save workspace content
 			await this.save_window_workspace($window, page, editor);
 
-			// Save sidebar customizations
-			this.save_sidebar_customizations($window, page);
+			// Save sidebar customizations (only for private workspaces)
+			if (!page.public) {
+				this.save_sidebar_customizations($window, page);
 
-			// Exit sidebar edit mode after successful save
-			// (workspace edit mode is already exited in save_window_workspace)
-			const $sidebar = $window.find(".window-sidebar");
-			$sidebar.removeClass("edit-mode");
+				// Exit sidebar edit mode after successful save
+				// (workspace edit mode is already exited in save_window_workspace)
+				const $sidebar = $window.find(".window-sidebar");
+				$sidebar.removeClass("edit-mode");
+			}
 
 		} catch (error) {
 			console.error("Error saving workspace and sidebar:", error);
@@ -3190,7 +3205,7 @@ frappe.views.Workspace = class Workspace {
 			await frappe.call({
 				method: "frappe.desk.doctype.workspace.workspace.save_page",
 				args: {
-					title: page.name,
+					title: page.title,
 					public: page.public ? 1 : 0,
 					new_widgets: new_widgets,
 					blocks: JSON.stringify(blocks)
