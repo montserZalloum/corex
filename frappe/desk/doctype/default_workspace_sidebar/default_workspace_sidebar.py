@@ -1,0 +1,72 @@
+# Copyright (c) 2025, Frappe Technologies Pvt. Ltd. and contributors
+# For license information, please see license.txt
+
+import frappe
+from frappe import _
+from frappe.model.document import Document
+
+
+class DefaultWorkspaceSidebar(Document):
+	def validate(self):
+		"""Validate the document before saving"""
+		# Ensure the workspace exists
+		if not frappe.db.exists("Workspace", self.workspace):
+			frappe.throw(_("Workspace {0} does not exist").format(self.workspace))
+
+		workspace_doc = frappe.get_doc("Workspace", self.workspace)
+
+		# Only allow default sidebars for public workspaces
+		if not workspace_doc.public:
+			frappe.throw(
+				_("Default Workspace Sidebar can only be created for public workspaces"),
+				frappe.ValidationError
+			)
+
+		# Validate all links have required permissions
+		self.validate_link_permissions()
+
+	def validate_link_permissions(self):
+		"""Validate that the links in default sidebar are accessible"""
+		for link in self.sidebar_links:
+			if not self.has_permission_for_link(link):
+				frappe.throw(
+					_("Link {0} is not accessible. Check permissions for {1}").format(
+						link.label, link.link_to
+					),
+					frappe.PermissionError
+				)
+
+	def has_permission_for_link(self, link):
+		"""Check if the link is valid and accessible"""
+		link_type = link.link_type
+		link_to = link.link_to
+
+		# Skip URL validation
+		if link_type == "URL":
+			return True
+
+		if not link_to:
+			return False
+
+		try:
+			if link_type == "DocType":
+				# Check if DocType exists
+				return frappe.db.exists("DocType", link_to)
+
+			elif link_type == "Page":
+				# Check if page exists
+				return frappe.db.exists("Page", link_to)
+
+			elif link_type == "Report":
+				# Check if report exists
+				return frappe.db.exists("Report", link_to)
+
+			else:
+				return False
+
+		except Exception as e:
+			frappe.log_error(
+				f"Validation check failed for {link_type}: {link_to}\n{str(e)}",
+				"Default Workspace Sidebar Validation"
+			)
+			return False
