@@ -7,6 +7,18 @@ from frappe.model.document import Document
 
 
 class DefaultWorkspaceSidebar(Document):
+	# begin: auto-generated types
+	# This code is auto-generated. Do not modify anything in this block.
+
+	from typing import TYPE_CHECKING
+
+	if TYPE_CHECKING:
+		from frappe.desk.doctype.workspace_user_sidebar_link.workspace_user_sidebar_link import WorkspaceUserSidebarLink
+		from frappe.types import DF
+
+		sidebar_links: DF.Table[WorkspaceUserSidebarLink]
+		workspace: DF.Link
+	# end: auto-generated types
 	def validate(self):
 		"""Validate the document before saving"""
 		# Ensure the workspace exists
