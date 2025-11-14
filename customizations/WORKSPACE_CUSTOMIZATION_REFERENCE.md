@@ -746,4 +746,294 @@ For questions about these customizations:
 
 ---
 
-**End of Document - Last Updated: 2025-11-13**
+## 📋 Feature #13: Workspace Sidebar Duplication on Copy
+
+### Overview
+
+When users duplicate a workspace (create a copy), the workspace sidebar is automatically copied using a smart three-tier priority system. This ensures the duplicated workspace is ready to use immediately with all sidebar customizations intact.
+
+### Implementation
+
+**File:** `/home/corex/aurevia-bench/apps/frappe/frappe/desk/doctype/workspace/workspace.py`
+
+**Functions:**
+- `duplicate_page()` (line 380-414) - Main duplication function
+- `copy_sidebar_on_duplicate()` (line 417-520) - Helper function for sidebar copying
+
+### Three-Tier Sidebar Priority System
+
+The function uses a cascading priority system to determine which sidebar to copy:
+
+#### TIER 1: User Custom Sidebar (Highest Priority)
+
+**Condition:** `Workspace User Sidebar` exists for the user + source workspace
+
+**Fields Copied:**
+- All sidebar links with their properties
+- Hidden link preferences
+- Link ordering/sequence
+
+**Code Location:** Line 434-461
+
+```python
+source_custom_sidebar_name = frappe.db.get_value(
+    "Workspace User Sidebar",
+    {"user": target_user, "workspace": source_workspace_name},
+    "name"
+)
+```
+
+**Behavior:**
+- Checks if user has customized sidebar on source
+- Copies all links as-is with exact settings
+- Returns immediately (highest priority wins)
+
+---
+
+#### TIER 2: Admin Default Sidebar
+
+**Condition:** `Default Workspace Sidebar` exists for source workspace
+
+**Fields Copied:**
+- All default sidebar links
+- Link labels and icons
+- Link sequence/order
+
+**Code Location:** Line 463-509
+
+**Branch A: Public → Public Duplication**
+```python
+if is_public:
+    if frappe.has_role("System Manager"):
+        # Create new Default Workspace Sidebar for duplicated workspace
+```
+
+**Behavior:**
+- Only System Managers can copy default sidebar to public workspace
+- Creates `Default Workspace Sidebar` document for target
+- Preserves admin configuration
+
+**Branch B: Public → Private Duplication**
+```python
+else:
+    # Convert default sidebar to user customization
+    new_user_sidebar = frappe.new_doc("Workspace User Sidebar")
+    new_user_sidebar.user = target_user
+    new_user_sidebar.workspace = target_workspace_name
+```
+
+**Behavior:**
+- Converts admin default to user customization
+- Regular users get configured sidebar in private workspace
+- Hidden links initialized to empty
+
+---
+
+#### TIER 3: Built-in Workspace Links (Fallback)
+
+**Condition:** No custom or default sidebar exists
+
+**Code Location:** Line 511-513
+
+```python
+# TIER 3: No custom or default sidebar exists
+# The workspace.links are already copied by frappe.copy_doc()
+# No additional action needed
+```
+
+**Behavior:**
+- Framework automatically copies `workspace.links` table
+- Built-in links from workspace definition used
+- No additional action needed
+
+### Duplication Scenarios & Results
+
+#### Scenario 1: Public Workspace → Private Workspace
+
+**Source:** Public workspace with default sidebar
+**Target:** Private workspace
+**Result:** Default sidebar converted to user customization
+
+| Step | What Happens |
+|---|---|
+| 1 | Check for user custom sidebar on source (not found for public) |
+| 2 | Check for admin default sidebar (found) |
+| 3 | Create Workspace User Sidebar for target workspace |
+| 4 | Copy all default sidebar links to user custom |
+| 5 | Initialize hidden_default_links to empty |
+
+**Code Path:** Lines 470-508
+
+---
+
+#### Scenario 2: Private Workspace → Private Workspace (Same User)
+
+**Source:** Private workspace with user customization
+**Target:** New private workspace
+**Result:** User customization copied exactly
+
+| Step | What Happens |
+|---|---|
+| 1 | Check for user custom sidebar on source (found) |
+| 2 | Create Workspace User Sidebar for target |
+| 3 | Copy all custom links with exact properties |
+| 4 | Preserve hidden_default_links |
+| 5 | Return (TIER 1 wins) |
+
+**Code Path:** Lines 434-461
+
+---
+
+#### Scenario 3: Public Workspace → Public Workspace (System Manager)
+
+**Source:** Public workspace with default sidebar
+**Target:** New public workspace
+**Result:** Admin default sidebar copied to new workspace
+
+| Step | What Happens |
+|---|---|
+| 1 | Check for user custom sidebar (not found) |
+| 2 | Check for admin default sidebar (found) |
+| 3 | Check if user is System Manager (yes) |
+| 4 | Create Default Workspace Sidebar for target |
+| 5 | Copy all default links |
+
+**Code Path:** Lines 473-489
+
+---
+
+#### Scenario 4: Public Workspace → Public Workspace (Regular User)
+
+**Source:** Public workspace with admin default sidebar
+**Target:** New public workspace
+**Result:** Built-in links used (no admin default copied)
+
+| Step | What Happens |
+|---|---|
+| 1 | Check for user custom sidebar (not found) |
+| 2 | Check for admin default sidebar (found) |
+| 3 | Check if user is System Manager (no) |
+| 4 | Skip default sidebar copy |
+| 5 | Use built-in workspace links (already copied) |
+
+**Code Path:** Lines 473-489 (condition fails, skip)
+
+---
+
+#### Scenario 5: Workspace Without Sidebar Configuration
+
+**Source:** Any workspace with no custom or default sidebar
+**Target:** Any new workspace
+**Result:** Built-in workspace links used
+
+| Step | What Happens |
+|---|---|
+| 1 | Check for user custom sidebar (not found) |
+| 2 | Check for admin default sidebar (not found) |
+| 3 | Skip to TIER 3 |
+| 4 | Use workspace.links (already copied by framework) |
+
+**Code Path:** Lines 511-513
+
+---
+
+### Permission Model
+
+**Who Can Duplicate?**
+
+| User Type | Public WS | Private WS (Own) | Private WS (Other) |
+|---|---|---|---|
+| Regular User | ✅ (as private) | ✅ | ❌ |
+| Workspace Manager | ✅ (as public) | ✅ (as public) | ❌ |
+| System Manager | ✅ (with default sidebar) | ✅ | ❌ |
+
+**Permission Checks:**
+
+1. **Duplication Permission:** Enforced in `duplicate_page()` line 386-389
+   - Non-managers cannot create public duplicates
+   - System Manager check for default sidebar copy (line 475)
+
+2. **Sidebar Access:** Uses `ignore_permissions=True` for copying
+   - Copying happens server-side, user permissions validated via duplication permission
+   - New sidebar belongs to current user or system
+
+### Error Handling
+
+**Location:** Lines 515-520
+
+```python
+except Exception as e:
+    frappe.log_error(
+        title="Sidebar Copy Error during Workspace Duplication",
+        message=f"Failed to copy sidebar from {source_workspace_name} to {target_workspace_name}: {str(e)}"
+    )
+```
+
+**Behavior:**
+- Sidebar copy failures are logged but don't prevent workspace duplication
+- Workspace is created successfully
+- User gets functional workspace with fallback to built-in links
+- Error logged for debugging
+
+### Testing Checklist
+
+Test Cases for Sidebar Duplication:
+
+**Public → Private:**
+- [ ] Sidebar copied to duplicated private workspace
+- [ ] Default links appear in duplicated workspace
+- [ ] User can customize duplicated workspace sidebar
+- [ ] Hidden links preserved if any
+
+**Private → Private (Same User):**
+- [ ] User custom sidebar copied exactly
+- [ ] All custom links appear in order
+- [ ] Hidden link preferences preserved
+- [ ] Duplicated workspace is fully editable
+
+**Public → Public (System Manager):**
+- [ ] Admin default sidebar copied
+- [ ] Default Workspace Sidebar document created
+- [ ] All default links appear
+
+**Public → Public (Non-Manager):**
+- [ ] Built-in workspace links appear
+- [ ] No admin default sidebar created
+- [ ] No errors in logs
+
+**No Sidebar Config:**
+- [ ] Duplication succeeds
+- [ ] Built-in workspace links appear
+- [ ] No sidebar documents created unnecessarily
+
+### Known Limitations
+
+1. **Permission Filtering:** Links are not filtered during copy
+   - Filtering happens at display time in `get_user_sidebar_links()`
+   - If user loses permission to a link, it won't display (but document exists)
+
+2. **Bulk Operations:** Sidebar copy not optimized for bulk duplication
+   - Each duplication creates separate sidebar document
+   - Consider optimization for future versions
+
+3. **Module Restrictions:** New workspace might have different modules than source
+   - Links might become inaccessible
+   - Rely on permission filtering (already implemented)
+
+### Integration with Other Features
+
+**Related Functions:**
+- `frappe.copy_doc()` - Copies workspace document and built-in links
+- `get_user_sidebar_links()` - Three-tier priority display logic (matches copy priority)
+- `save_user_sidebar()` - Saves user customizations after duplication
+- `has_permission_for_link_dict()` - Permission filtering on display
+
+**Related DocTypes:**
+- `Workspace` - Main workspace document
+- `Workspace User Sidebar` - User-specific sidebar customizations
+- `Default Workspace Sidebar` - Admin-configured defaults
+- `Workspace User Sidebar Link` - Individual sidebar link records
+
+---
+
+**End of Document - Last Updated: 2025-11-14**

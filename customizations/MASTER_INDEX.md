@@ -449,27 +449,66 @@ TIER 3: Workspace Definition
 
 ---
 
-### 1️⃣3️⃣ WORKSPACE CLONING TO PRIVATE
+### 1️⃣3️⃣ WORKSPACE CLONING WITH SIDEBAR DUPLICATION
 
-**Feature:** Users can duplicate public workspaces to their private workspace
+**Feature:** Users can duplicate workspaces with complete sidebar configuration copied automatically
 
 **Files:**
-- **Backend Logic:** `/home/corex/aurevia-bench/apps/frappe/frappe/desk/desktop.py`
-  - `duplicate_workspace_to_private()` method
+- **Backend Logic:** `/home/corex/aurevia-bench/apps/frappe/frappe/desk/doctype/workspace/workspace.py`
+  - `duplicate_page()` method (line 380-414)
+  - `copy_sidebar_on_duplicate()` function (line 417-520)
 
-**Process:**
-1. User selects public workspace to clone
-2. System creates new private workspace
-3. Copies content, links, layout
-4. Sets as user's private copy
-5. User can then customize
+**What Gets Copied:**
+- ✅ Workspace content (EditorJS blocks)
+- ✅ Built-in workspace links
+- ✅ User custom sidebar (if exists)
+- ✅ Admin default sidebar (if exists)
+- ✅ Hidden link preferences
+- ✅ All metadata (icon, color, parent, etc.)
+
+**Three-Tier Sidebar Priority System:**
+
+When duplicating a workspace, the system automatically copies the sidebar using this priority:
+
+1. **TIER 1 - User Custom Sidebar** (Highest Priority)
+   - If user has customized the sidebar on source workspace
+   - Copies all custom links and hidden link preferences
+   - Preserves exact link order and customizations
+
+2. **TIER 2 - Admin Default Sidebar**
+   - If admin configured a default sidebar for the workspace
+   - Converts to user customization when duplicating to private
+   - Copies as-is when duplicating to public (System Manager only)
+
+3. **TIER 3 - Built-in Workspace Links** (Fallback)
+   - Already copied by `frappe.copy_doc()`
+   - Used if no custom or default sidebar exists
+
+**Duplication Scenarios:**
+
+| Scenario | Source Sidebar | Result | Condition |
+|---|---|---|---|
+| Public → Private | User Custom | Copied to new private workspace | Always |
+| Public → Private | Admin Default | Converted to user custom sidebar | Always |
+| Public → Private | None | Uses built-in workspace links | Always |
+| Private → Private | User Custom | Copied to new private workspace | Same user |
+| Private → Private | None | Uses built-in workspace links | Same user |
+| Public → Public | Admin Default | Copied to new public workspace | System Manager only |
+| Public → Public | User Custom | Copied to new public workspace | System Manager only |
+| Public → Public | None | Uses built-in workspace links | Any user with permission |
 
 **Restrictions:**
 - ❌ Cannot clone other users' private workspaces
-- ✅ Can clone public workspaces
-- ✅ Can clone their own private workspaces (create variant)
+- ✅ Can clone public workspaces (sidebar copied)
+- ✅ Can clone own private workspaces (sidebar copied)
+- ✅ System Managers can clone public → public with admin default sidebar
+- ⚠️ Non-System Managers duplicating public → public get built-in links (no admin default)
 
-**Status:** Active - User-friendly feature
+**Error Handling:**
+- Sidebar copy failures are logged but don't prevent workspace duplication
+- Workspace is created successfully even if sidebar copy fails
+
+**Status:** Active - Full implementation with smart three-tier sidebar copying
 
 ---
 

@@ -279,6 +279,62 @@ After making changes, verify:
 
 ---
 
-**Last Updated: 2025-11-13**
+## 📋 Workspace Sidebar Duplication (Feature #13)
 
-For detailed information, see: `WORKSPACE_CUSTOMIZATION_REFERENCE.md`
+### Quick Facts
+
+**What:** When duplicating a workspace, the sidebar is automatically copied
+
+**Where:** `/home/corex/aurevia-bench/apps/frappe/frappe/desk/doctype/workspace/workspace.py` (line 417-520)
+
+**How:** Three-tier priority system automatically selects which sidebar to copy
+
+### Sidebar Copy Priority
+
+1. **User Custom Sidebar** (if exists) → Copied as-is with all customizations
+2. **Admin Default Sidebar** (if exists) → Converted to user custom for private, copied for public
+3. **Built-in Workspace Links** (fallback) → Already copied by framework
+
+### Key Scenarios
+
+| User Action | What Happens |
+|---|---|
+| Duplicate public workspace | Sidebar copied (custom or default if exists) |
+| Duplicate own private workspace | Your sidebar customizations copied |
+| Manager duplicates public → public | Default sidebar copied if exists |
+| Non-manager duplicates public → public | Built-in links used (no admin default) |
+
+### Most Important Code Sections
+
+**Duplication Call (line 412):**
+```python
+copy_sidebar_on_duplicate(page_name, doc.name, doc.public)
+```
+
+**Three-Tier Logic (lines 434-513):**
+```python
+# TIER 1: User custom sidebar
+if source_custom_sidebar_name: # Copy it
+
+# TIER 2: Admin default sidebar
+if source_default_sidebar_name: # Convert or copy based on public/private
+
+# TIER 3: Built-in links
+# Already handled by frappe.copy_doc()
+```
+
+### Testing Checklist
+
+After duplication, verify:
+- [ ] Sidebar links visible in duplicated workspace
+- [ ] Hidden links remain hidden (if applicable)
+- [ ] Link order preserved
+- [ ] Custom links appear if they existed
+- [ ] Workspace Manager permissions respected
+- [ ] No errors in browser console
+
+---
+
+**Last Updated: 2025-11-14**
+
+For detailed information, see: `WORKSPACE_CUSTOMIZATION_REFERENCE.md` and `MASTER_INDEX.md` Feature #13

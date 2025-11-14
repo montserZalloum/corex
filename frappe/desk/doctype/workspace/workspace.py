@@ -408,7 +408,116 @@ def duplicate_page(page_name, new_page):
 		doc.sequence_id = last_sequence_id(doc) + 1
 	doc.insert(ignore_permissions=True)
 
+	# Copy sidebar configuration from source to duplicated workspace
+	copy_sidebar_on_duplicate(page_name, doc.name, doc.public)
+
 	return doc
+
+
+def copy_sidebar_on_duplicate(source_workspace_name, target_workspace_name, is_public):
+	"""
+	Copy sidebar configuration from source workspace to target workspace.
+
+	Uses three-tier priority system:
+	1. Workspace User Sidebar (user-specific customizations)
+	2. Default Workspace Sidebar (admin-configured defaults)
+	3. Built-in workspace links (already copied by frappe.copy_doc)
+
+	Args:
+		source_workspace_name: Name of source workspace
+		target_workspace_name: Name of target workspace
+		is_public: Whether target workspace is public
+	"""
+	target_user = frappe.session.user
+
+	try:
+		# TIER 1: Check for user's custom sidebar on source workspace
+		source_custom_sidebar_name = frappe.db.get_value(
+			"Workspace User Sidebar",
+			{"user": target_user, "workspace": source_workspace_name},
+			"name"
+		)
+
+		if source_custom_sidebar_name:
+			# User has custom sidebar on source - copy it to target
+			source_sidebar = frappe.get_doc("Workspace User Sidebar", source_custom_sidebar_name)
+			new_sidebar = frappe.new_doc("Workspace User Sidebar")
+			new_sidebar.user = target_user
+			new_sidebar.workspace = target_workspace_name
+			new_sidebar.hidden_default_links = source_sidebar.hidden_default_links
+
+			# Copy all sidebar links
+			for link in source_sidebar.sidebar_links:
+				new_sidebar.append("sidebar_links", {
+					"link_type": link.link_type,
+					"link_to": link.link_to,
+					"label": link.label,
+					"icon": link.icon,
+					"is_custom": link.is_custom,
+					"idx": link.idx
+				})
+
+			new_sidebar.insert(ignore_permissions=True)
+			return
+
+		# TIER 2: Check for admin default sidebar on source workspace
+		source_default_sidebar_name = frappe.db.get_value(
+			"Default Workspace Sidebar",
+			{"workspace": source_workspace_name},
+			"name"
+		)
+
+		if source_default_sidebar_name:
+			source_default = frappe.get_doc("Default Workspace Sidebar", source_default_sidebar_name)
+
+			if is_public:
+				# Public to Public: Copy Default Workspace Sidebar (only if user is System Manager)
+				if frappe.has_role("System Manager"):
+					new_default_sidebar = frappe.new_doc("Default Workspace Sidebar")
+					new_default_sidebar.workspace = target_workspace_name
+
+					# Copy all sidebar links from default
+					for link in source_default.sidebar_links:
+						new_default_sidebar.append("sidebar_links", {
+							"link_type": link.link_type,
+							"link_to": link.link_to,
+							"label": link.label,
+							"icon": link.icon,
+							"idx": link.idx
+						})
+
+					new_default_sidebar.insert(ignore_permissions=True)
+			else:
+				# Public to Private: Convert default sidebar to user customization
+				new_user_sidebar = frappe.new_doc("Workspace User Sidebar")
+				new_user_sidebar.user = target_user
+				new_user_sidebar.workspace = target_workspace_name
+				new_user_sidebar.hidden_default_links = "[]"
+
+				# Copy all sidebar links from default to user sidebar
+				for link in source_default.sidebar_links:
+					new_user_sidebar.append("sidebar_links", {
+						"link_type": link.link_type,
+						"link_to": link.link_to,
+						"label": link.label,
+						"icon": link.icon,
+						"is_custom": False,
+						"idx": link.idx
+					})
+
+				new_user_sidebar.insert(ignore_permissions=True)
+			return
+
+		# TIER 3: No custom or default sidebar exists
+		# The workspace.links are already copied by frappe.copy_doc()
+		# No additional action needed
+
+	except Exception as e:
+		# Log error but don't fail the workspace duplication
+		frappe.log_error(
+			title="Sidebar Copy Error during Workspace Duplication",
+			message=f"Failed to copy sidebar from {source_workspace_name} to {target_workspace_name}: {str(e)}"
+		)
 
 
 @frappe.whitelist()
