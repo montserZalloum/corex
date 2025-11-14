@@ -1634,7 +1634,6 @@ frappe.views.Workspace = class Workspace {
 					<div class="window-controls">
 						<button class="btn-window-back" title="Back" style="display: none;">←</button>
 						<button class="btn-window-edit" title="Edit Workspace" style="${page.public && !this.has_access ? 'display: none;' : ''}">✎</button>
-						<button class="btn-window-menu" title="Menu">⋮</button>
 						<button class="btn-window-minimize" title="Minimize">_</button>
 						<button class="btn-window-maximize" title="Maximize">□</button>
 						<button class="btn-window-close" title="Close">×</button>
@@ -1736,10 +1735,6 @@ frappe.views.Workspace = class Workspace {
 			await this.toggle_window_edit_mode($window, page);
 		});
 
-		// Add menu button handler for workspace actions
-		$window.find(".btn-window-menu").on("click", () => {
-			this.show_window_menu($window, page);
-		});
 
 		// Load workspace content
 		this.load_workspace_content(page, $window);
