@@ -156,6 +156,8 @@ frappe.views.Workspace = class Workspace {
 		];
 		this.active_workspace_window = null; // Track which window is active for routing
 		this.window_z_index = 1000; // Track z-index for stacking windows
+		this.minimized_windows = []; // Track minimized windows for dock
+		this.dock_element = null; // Reference to dock container
 
 		this.prepare_container();
 		this.setup_pages();
@@ -174,6 +176,9 @@ frappe.views.Workspace = class Workspace {
 		this.sidebar = list_sidebar.find(".desk-sidebar");
 		this.body = this.wrapper.find(".layout-main-section");
 		this.prepare_new_and_edit();
+
+		// Initialize macOS-style dock for minimized windows
+		this.initialize_workspace_dock();
 	}
 
 	async setup_pages(reload) {
@@ -1682,6 +1687,15 @@ frappe.views.Workspace = class Workspace {
 
 		// Add window control handlers with smooth transitions
 		$window.find(".btn-window-close").on("click", () => {
+			// Remove from minimized windows list if applicable
+			if ($window.hasClass("minimized-to-dock")) {
+				const windowId = $window.attr("id");
+				this.minimized_windows = this.minimized_windows.filter(w => w.id !== windowId);
+				this.update_dock_visibility();
+				// Remove dock item
+				this.dock_element.find(`[data-window-id="${windowId}"]`).remove();
+			}
+
 			// Remove all pages created for this window
 			this.cleanup_window_pages($window);
 			$window.fadeOut(200, function() {
@@ -1690,13 +1704,14 @@ frappe.views.Workspace = class Workspace {
 		});
 
 		$window.find(".btn-window-minimize").on("click", () => {
-			const $content = $window.find(".window-content");
-			const isMinimized = $content.hasClass("minimized");
+			const isMinimized = $window.hasClass("minimized-to-dock");
 
 			if (isMinimized) {
-				$content.slideDown(200).removeClass("minimized");
+				// Restore from dock
+				this.restore_window_from_dock($window);
 			} else {
-				$content.slideUp(200).addClass("minimized");
+				// Minimize to dock
+				this.minimize_window_to_dock($window);
 			}
 		});
 
@@ -3742,6 +3757,157 @@ frappe.views.Workspace = class Workspace {
 		}
 
 		return null;
+	}
+
+	// ============================================================================
+	// macOS-Style Dock Methods for Minimized Windows
+	// ============================================================================
+
+	initialize_workspace_dock() {
+		// Create dock element if it doesn't exist
+		if (!this.dock_element) {
+			this.dock_element = $(`<div class="workspace-dock" style="display: none;"></div>`);
+			this.dock_element.appendTo("body");
+		}
+		this.minimized_windows = [];
+	}
+
+	minimize_window_to_dock($window) {
+		const windowId = $window.attr("id");
+		const windowTitle = $window.find(".window-title").text();
+
+		// Save window state before minimizing
+		$window.data("pre-minimize-position", {
+			left: $window.css("left"),
+			top: $window.css("top"),
+			width: $window.css("width"),
+			height: $window.css("height"),
+			zIndex: $window.css("z-index")
+		});
+
+		// Get the dock item's position for the genie animation
+		const dockRect = this.dock_element[0].getBoundingClientRect();
+		const windowRect = $window[0].getBoundingClientRect();
+
+		// Calculate offset for CSS variables
+		const offsetX = dockRect.left + dockRect.width / 2 - windowRect.left - windowRect.width / 2;
+		const offsetY = dockRect.top - windowRect.top - windowRect.height / 2;
+
+		// Set CSS variables for animation
+		$window.css({
+			"--dock-offset-x": `${offsetX}px`,
+			"--dock-offset-y": `${offsetY}px`
+		});
+
+		// Apply minimizing animation
+		$window.addClass("minimizing");
+
+		// After animation, hide window and add to dock
+		setTimeout(() => {
+			$window.removeClass("minimizing");
+			$window.addClass("minimized-to-dock");
+			$window.css("display", "none");
+
+			// Add to minimized windows list
+			this.minimized_windows.push({
+				id: windowId,
+				title: windowTitle,
+				$window: $window
+			});
+
+			// Create and add dock item
+			this.add_dock_item(windowId, windowTitle, $window);
+
+			// Show dock
+			this.update_dock_visibility();
+		}, 400);
+	}
+
+	add_dock_item(windowId, windowTitle, $window) {
+		// Get first letter or a default icon
+		const firstLetter = windowTitle.charAt(0).toUpperCase();
+
+		const $dockItem = $(`
+			<div class="dock-item" data-window-id="${windowId}">
+				<div class="dock-item-icon">${firstLetter}</div>
+				<div class="dock-item-label">${windowTitle}</div>
+			</div>
+		`);
+
+		// Click handler to restore window
+		$dockItem.on("click", () => {
+			this.restore_window_from_dock($window);
+		});
+
+		this.dock_element.append($dockItem);
+	}
+
+	restore_window_from_dock($window) {
+		const windowId = $window.attr("id");
+
+		// Get the dock item's position
+		const $dockItem = this.dock_element.find(`[data-window-id="${windowId}"]`);
+		if ($dockItem.length === 0) return;
+
+		const dockRect = $dockItem[0].getBoundingClientRect();
+		const preMinimizePos = $window.data("pre-minimize-position");
+
+		if (!preMinimizePos) return;
+
+		// Get current window rect for animation calculation
+		const windowRect = $window[0].getBoundingClientRect();
+
+		// Calculate reverse offset for animation
+		const offsetX = dockRect.left + dockRect.width / 2 - (preMinimizePos.left + parseInt(preMinimizePos.width) / 2);
+		const offsetY = dockRect.top - (preMinimizePos.top + parseInt(preMinimizePos.height) / 2);
+
+		// Set CSS variables for reverse animation
+		$window.css({
+			"--dock-offset-x": `${offsetX}px`,
+			"--dock-offset-y": `${offsetY}px`
+		});
+
+		// Show window and apply restoring animation
+		$window.css("display", "");
+		$window.addClass("restoring");
+
+		// Restore position after animation
+		setTimeout(() => {
+			$window.removeClass("restoring minimized-to-dock");
+			$window.css({
+				left: preMinimizePos.left,
+				top: preMinimizePos.top,
+				width: preMinimizePos.width,
+				height: preMinimizePos.height,
+				zIndex: preMinimizePos.zIndex
+			});
+
+			// Remove from minimized windows list
+			this.minimized_windows = this.minimized_windows.filter(w => w.id !== windowId);
+
+			// Remove dock item
+			$dockItem.remove();
+
+			// Update dock visibility
+			this.update_dock_visibility();
+		}, 400);
+	}
+
+	update_dock_visibility() {
+		if (this.minimized_windows.length === 0) {
+			// Hide dock with animation
+			this.dock_element.removeClass("visible").addClass("hidden");
+			setTimeout(() => {
+				this.dock_element.css("display", "none");
+			}, 400);
+		} else {
+			// Show dock with animation
+			this.dock_element.css("display", "");
+			this.dock_element.removeClass("hidden");
+			setTimeout(() => {
+				this.dock_element.addClass("visible");
+			}, 10);
+		}
 	}
 
 };

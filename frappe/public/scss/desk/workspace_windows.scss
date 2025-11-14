@@ -1102,3 +1102,227 @@ $shadow-ultra: 0 30px 80px rgba(0, 0, 0, 0.2);
 	left: 10px;
 	display: block!important;
 }
+
+// ============================================================================
+// macOS-Style Dock for Minimized Windows
+// ============================================================================
+
+@keyframes dockSlideUp {
+	from {
+		opacity: 0;
+		transform: translateY(20px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@keyframes dockSlideDown {
+	from {
+		opacity: 1;
+		transform: translateY(0);
+	}
+	to {
+		opacity: 0;
+		transform: translateY(20px);
+	}
+}
+
+// Genie effect animation - window scales down and moves to dock
+@keyframes genieMinimize {
+	0% {
+		opacity: 1;
+		transform: translate(0, 0) scale(1);
+	}
+	100% {
+		opacity: 0.3;
+		transform: translate(var(--dock-offset-x, 0), var(--dock-offset-y, 0)) scale(0.15);
+	}
+}
+
+// Reverse genie effect - window scales up and moves from dock
+@keyframes genieRestore {
+	0% {
+		opacity: 0.3;
+		transform: translate(var(--dock-offset-x, 0), var(--dock-offset-y, 0)) scale(0.15);
+	}
+	100% {
+		opacity: 1;
+		transform: translate(0, 0) scale(1);
+	}
+}
+
+// Dock container - macOS style floating dock at bottom center
+.workspace-dock {
+	position: fixed;
+	bottom: 20px;
+	left: 50%;
+	transform: translateX(-50%);
+	display: flex;
+	gap: 8px;
+	padding: 12px 16px;
+	background: rgba(0, 0, 0, 0.4);
+	backdrop-filter: blur(30px) saturate(180%);
+	-webkit-backdrop-filter: blur(30px) saturate(180%);
+	border: 1px solid rgba(255, 255, 255, 0.15);
+	border-radius: 24px;
+	box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+	z-index: 1500;
+	min-height: 60px;
+	align-items: center;
+	justify-content: center;
+	flex-wrap: wrap;
+	max-width: 90vw;
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+	            transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+
+	// Show dock when it has items
+	&.visible {
+		opacity: 1;
+		pointer-events: auto;
+		animation: dockSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+	}
+
+	// Hide dock when empty
+	&.hidden {
+		animation: dockSlideDown 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+	}
+}
+
+// Individual dock item - represents a minimized window
+.dock-item {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	padding: 8px 12px;
+	cursor: pointer;
+	transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+	user-select: none;
+	border-radius: 12px;
+	background: rgba(255, 255, 255, 0.05);
+	border: 1px solid rgba(255, 255, 255, 0.1);
+	min-width: 60px;
+	min-height: 60px;
+
+	&:hover {
+		background: rgba(255, 255, 255, 0.15);
+		border-color: rgba(255, 255, 255, 0.25);
+		transform: scale(1.15) translateY(-8px);
+		box-shadow: 0 12px 24px rgba(0, 0, 0, 0.3);
+
+		.dock-item-label {
+			opacity: 1;
+			font-size: 12px;
+		}
+	}
+
+	&:active {
+		transform: scale(0.95);
+	}
+
+	// Icon/indicator for dock item
+	.dock-item-icon {
+		width: 32px;
+		height: 32px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: linear-gradient(135deg, rgba(99, 102, 241, 0.6), rgba(139, 92, 246, 0.6));
+		border-radius: 8px;
+		font-size: 16px;
+		font-weight: 600;
+		color: white;
+		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+		transition: all 0.2s ease;
+	}
+
+	// Label for dock item (workspace name)
+	.dock-item-label {
+		font-size: 11px;
+		font-weight: 500;
+		color: rgba(255, 255, 255, 0.8);
+		white-space: nowrap;
+		max-width: 80px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		opacity: 0;
+		transition: opacity 0.2s ease;
+		text-align: center;
+		text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+	}
+
+	// Pulse animation for dock items
+	&.pulse {
+		animation: dockItemPulse 1s ease-in-out infinite;
+	}
+}
+
+@keyframes dockItemPulse {
+	0%, 100% {
+		transform: scale(1);
+	}
+	50% {
+		transform: scale(1.05);
+	}
+}
+
+// Separator line in dock (optional)
+.dock-separator {
+	width: 1px;
+	height: 30px;
+	background: rgba(255, 255, 255, 0.1);
+	margin: 0 4px;
+}
+
+// Window animation when minimizing to dock
+.workspace-window {
+	&.minimizing {
+		animation: genieMinimize 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+		pointer-events: none;
+	}
+
+	&.restoring {
+		animation: genieRestore 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+	}
+
+	// Hidden state for minimized windows
+	&.minimized-to-dock {
+		display: none;
+	}
+}
+
+// Responsive adjustments for smaller screens
+@media (max-width: 768px) {
+	.workspace-dock {
+		bottom: 10px;
+		padding: 10px 12px;
+		gap: 6px;
+	}
+
+	.dock-item {
+		min-width: 50px;
+		min-height: 50px;
+		padding: 6px 10px;
+
+		&:hover {
+			transform: scale(1.1) translateY(-6px);
+		}
+
+		.dock-item-icon {
+			width: 28px;
+			height: 28px;
+			font-size: 14px;
+		}
+
+		.dock-item-label {
+			font-size: 10px;
+			max-width: 60px;
+		}
+	}
+}
