@@ -1159,6 +1159,22 @@ body {
 						}
 					}
 				}
+				&:not(.is-draggable) {
+					.sidebar-item-control {
+							opacity: 1;
+							visibility: visible;
+			
+							// Hide drag handle for non-editable items
+							.drag-handle {
+									display: none !important;
+							}
+			
+							// Hide settings button for non-editable items
+							.setting-btn {
+									display: none !important;
+							}
+					}
+			  }
 
 				.sidebar-item-control {
 					position: absolute;
@@ -1242,6 +1258,9 @@ body {
 				.block-click {
 					pointer-events: none;
 				}
+			}
+			[item-is-hidden="1"] {
+				display: block;
 			}
 		}
 	}

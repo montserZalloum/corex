@@ -383,6 +383,8 @@ def duplicate_page(page_name, new_page):
 
 	new_page = loads(new_page)
 
+	# Only prevent non-managers from creating public duplicates
+	# Non-managers can always duplicate public workspaces as private
 	if new_page.get("is_public") and not is_workspace_manager():
 		return
 

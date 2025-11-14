@@ -1634,6 +1634,7 @@ frappe.views.Workspace = class Workspace {
 					<div class="window-controls">
 						<button class="btn-window-back" title="Back" style="display: none;">←</button>
 						<button class="btn-window-edit" title="Edit Workspace" style="${page.public && !this.has_access ? 'display: none;' : ''}">✎</button>
+						<button class="btn-window-menu" title="Menu">⋮</button>
 						<button class="btn-window-minimize" title="Minimize">_</button>
 						<button class="btn-window-maximize" title="Maximize">□</button>
 						<button class="btn-window-close" title="Close">×</button>
@@ -1735,10 +1736,68 @@ frappe.views.Workspace = class Workspace {
 			await this.toggle_window_edit_mode($window, page);
 		});
 
+		// Add menu button handler for workspace actions
+		$window.find(".btn-window-menu").on("click", () => {
+			this.show_window_menu($window, page);
+		});
+
 		// Load workspace content
 		this.load_workspace_content(page, $window);
 
 		return $window;
+	}
+
+	show_window_menu($window, page) {
+		// Close any existing menus
+		$(".window-menu-dropdown").remove();
+
+		const $menuButton = $window.find(".btn-window-menu");
+		const menuItems = [];
+		const self = this; // Store reference to workspace instance
+
+		// Add duplicate option
+		menuItems.push({
+			label: __("Duplicate"),
+			icon: frappe.utils.icon("es-line-duplicate", "sm"),
+			action: () => {
+				$(".window-menu-dropdown").remove();
+				self.duplicate_page(page);
+			}
+		});
+
+		// Create menu dropdown
+		const $menu = $(`<div class="window-menu-dropdown"></div>`);
+
+		menuItems.forEach(item => {
+			const $item = $(`
+				<div class="window-menu-item">
+					<span class="menu-item-icon">${item.icon}</span>
+					<span class="menu-item-label">${item.label}</span>
+				</div>
+			`);
+			$item.on("click", item.action);
+			$menu.append($item);
+		});
+
+		// Position menu below button
+		const btnOffset = $menuButton.offset();
+		$menu.css({
+			position: "fixed",
+			top: btnOffset.top + $menuButton.outerHeight() + 5,
+			left: btnOffset.left - $menu.width() + $menuButton.width(),
+			zIndex: parseInt($window.css("z-index")) + 1
+		});
+
+		// Add menu to body and attach close handler
+		$menu.appendTo("body");
+
+		// Close menu when clicking outside
+		$(document).on("click.window-menu", function(e) {
+			if (!$(e.target).closest(".window-menu-dropdown, .btn-window-menu").length) {
+				$(".window-menu-dropdown").remove();
+				$(document).off("click.window-menu");
+			}
+		});
 	}
 
 	edit_current_workspace() {
