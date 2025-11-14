@@ -42,7 +42,7 @@
   },
   {
    "fieldname": "icon",
-   "fieldtype": "Data",
+   "fieldtype": "Icon",
    "in_list_view": 1,
    "label": "Icon"
   },

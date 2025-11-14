@@ -1133,21 +1133,18 @@ def can_access_workspace(workspace_name):
         if workspace.public:
             # Check module-based permissions if a module is set
             if workspace.module:
-                # --- START OF THE NEW LOGIC ---
-                # The "Module" field sometimes contains "Core" which is a code folder,
-                # but not a real record in the "Module Def" DocType.
-                # The permission engine will crash if we try to check it.
-                # So, we will specifically ignore checking permissions on "Core".
-                if workspace.module == "Core":
-                    # We skip the module permission check because it's invalid.
-                    # The role-based checks below will still provide security.
-                    pass
-                else:
-                    # For all other valid modules, we perform the permission check as usual.
-                    has_module_access = frappe.has_permission(workspace.module, ptype="read")
-                    if not has_module_access:
-                        return False
-                # --- END OF THE NEW LOGIC ---
+                # These are code folders/modules, not Module Def records, so skip permission checks
+                # Adding checks for these prevents "DocType not found" errors
+                code_modules = ["Core", "Automation", "Website", "Integrations", "Desk", "Desk Setup"]
+
+                if workspace.module not in code_modules:
+                    # For non-code modules, check if the module exists before checking permissions
+                    if frappe.db.exists("Module Def", workspace.module):
+                        # Module exists, check user has access to it
+                        has_module_access = frappe.has_permission(workspace.module, ptype="read")
+                        if not has_module_access:
+                            return False
+                    # If module doesn't exist, silently skip (might be a typo in workspace config)
 
             # Check role-based restrictions if any are set
             if workspace.roles:
@@ -1201,6 +1198,10 @@ def _check_link_permission(link_type, link_to):
 
 	try:
 		if link_type == "DocType":
+			# Check if the DocType exists before checking permissions
+			if not frappe.db.exists("DocType", link_to):
+				return False
+
 			# Check if user has read permission for this DocType
 			return frappe.has_permission(link_to, ptype="read") or False
 
