@@ -2250,18 +2250,53 @@ frappe.views.Workspace = class Workspace {
 			// Create unique ID for this link
 			const link_id = `${link.link_type}-${frappe.router.slug(link.link_to)}`;
 
-			// Determine the route based on link type
+			// Determine the route based on link type and doc_view
 			let route = '';
+			const doctype_slug = frappe.router.slug(link.link_to);
+
 			if (link.link_type === 'DocType') {
-				route = `/app/${frappe.router.slug(link.link_to)}`;
+				if (link.doc_view) {
+					// Use the specified view
+					switch (link.doc_view) {
+						case "List":
+							route = `/app/${doctype_slug}/view/list`;
+							break;
+						case "Tree":
+							route = `/app/${doctype_slug}/view/tree`;
+							break;
+						case "Report Builder":
+							route = `/app/${doctype_slug}/view/report`;
+							break;
+						case "Dashboard":
+							route = `/app/${doctype_slug}/view/dashboard`;
+							break;
+						case "New":
+							route = `/app/${doctype_slug}/new`;
+							break;
+						case "Calendar":
+							route = `/app/${doctype_slug}/view/calendar/default`;
+							break;
+						case "Kanban":
+							route = `/app/${doctype_slug}/view/kanban`;
+							if (link.kanban_board) {
+								route += `/${link.kanban_board}`;
+							}
+							break;
+						default:
+							route = `/app/${doctype_slug}`;
+					}
+				} else {
+					// Default to list view
+					route = `/app/${doctype_slug}`;
+				}
 			} else if (link.link_type === 'Page') {
-				route = `/app/${frappe.router.slug(link.link_to)}`;
+				route = `/app/${doctype_slug}`;
 			} else if (link.link_type === 'Report') {
-				route = `/app/query-report/${frappe.router.slug(link.link_to)}`;
+				route = `/app/query-report/${doctype_slug}`;
 			} else if (link.link_type === 'URL') {
 				route = link.link_to; // Direct URL
 			} else {
-				route = `/app/${frappe.router.slug(link.link_to)}`;
+				route = `/app/${doctype_slug}`;
 			}
 
 			const is_custom_class = link.is_custom ? 'is-custom-link' : '';
@@ -2277,7 +2312,11 @@ frappe.views.Workspace = class Workspace {
 				     data-label="${frappe.utils.escape_html(label)}"
 				     data-icon="${icon}"
 				     data-is-custom="${link.is_custom ? 1 : 0}"
-				     data-is-default="${link.is_default ? 1 : 0}">
+				     data-is-default="${link.is_default ? 1 : 0}"
+				     data-doc-view="${link.doc_view || ''}"
+				     data-kanban-board="${link.kanban_board || ''}"
+				     data-color="${link.color || ''}"
+				     data-stats-filter="${(link.stats_filter || '').replace(/"/g, '&quot;')}">
 					<div class="drag-handle">
 						<svg class="icon icon-xs">
 							<use href="#icon-drag"></use>
@@ -2308,6 +2347,9 @@ frappe.views.Workspace = class Workspace {
 		// Add click handlers for sidebar links
 		this.setup_sidebar_navigation($window);
 
+		// Render count badges for sidebar links
+		this.render_sidebar_count_badges($window);
+
 		// Enable drag-and-drop reordering
 		this.setup_sidebar_sortable($window, page);
 
@@ -2337,6 +2379,19 @@ frappe.views.Workspace = class Workspace {
 
 			if (!route) return;
 
+			// Apply stats_filter as route options if present
+			const stats_filter = $link.data("stats-filter");
+			if (stats_filter) {
+				try {
+					const filters = frappe.utils.get_filter_from_json(stats_filter, $link.data("link-to"));
+					if (filters && Array.isArray(filters) && filters.length > 0) {
+						frappe.route_options = filters;
+					}
+				} catch(e) {
+					console.warn("Invalid stats_filter JSON:", stats_filter, e);
+				}
+			}
+
 			// Set this window as active before navigation
 			self.active_workspace_window = $window;
 			$window.data("is-active", true);
@@ -2352,6 +2407,58 @@ frappe.views.Workspace = class Workspace {
 
 			// Navigate using frappe router
 			frappe.set_route(route);
+		});
+	}
+
+	render_sidebar_count_badges($window) {
+		/**
+		 * Render count badges for sidebar links with stats_filter
+		 * Displays count next to link label with optional color styling
+		 */
+		const $links = $window.find(".sidebar-link");
+
+		$links.each((index, link_element) => {
+			const $link = $(link_element);
+			const link_type = $link.data("link-type");
+			const link_to = $link.data("link-to");
+			const doc_view = $link.data("doc-view");
+			const stats_filter = $link.data("stats-filter");
+			const color = $link.data("color");
+
+			// Only show count badges for DocType links with stats_filter
+			if (link_type !== 'DocType' || doc_view === 'New' || !stats_filter) {
+				return;
+			}
+
+			// Parse filter and execute count query
+			try {
+				const filters = frappe.utils.process_filter_expression(stats_filter);
+				if (!filters) return;
+
+				frappe.db.count(link_to, { filters: filters })
+					.then((count) => {
+						// Determine color (default to gray if no color or count is 0)
+						let badge_color = 'gray';
+						if (color && count > 0) {
+							badge_color = color.toLowerCase();
+						}
+
+						// Create and append count badge
+						const $count_badge = $(
+							`<div class="indicator-pill no-indicator-dot ${badge_color}">${count}</div>`
+						);
+
+						const $label = $link.find('.sidebar-link-label');
+						if ($label.length) {
+							$count_badge.insertAfter($label);
+						}
+					})
+					.catch((error) => {
+						console.warn("Error fetching count for " + link_to, error);
+					});
+			} catch(e) {
+				console.warn("Invalid stats_filter for " + link_to, stats_filter, e);
+			}
 		});
 	}
 
@@ -2674,7 +2781,11 @@ frappe.views.Workspace = class Workspace {
 				label: $link.data("label"),
 				icon: $link.data("icon"),
 				is_custom: $link.data("is-custom") ? 1 : 0,
-				is_default: $link.data("is-default") ? 1 : 0
+				is_default: $link.data("is-default") ? 1 : 0,
+				doc_view: $link.data("doc-view") || null,
+				kanban_board: $link.data("kanban-board") || null,
+				color: $link.data("color") || null,
+				stats_filter: $link.data("stats-filter") || null
 			});
 		});
 
@@ -2793,6 +2904,65 @@ frappe.views.Workspace = class Workspace {
 					label: __("Is Default Link"),
 					default: 0,
 					description: __("Check to make this the default link that opens when workspace is accessed")
+				},
+				{
+					fieldname: "section_view",
+					fieldtype: "Section Break",
+					label: __("DocType View")
+				},
+				{
+					fieldname: "doc_view",
+					fieldtype: "Select",
+					label: __("DocType View"),
+					options: ["", "List", "Report Builder", "Dashboard", "Tree", "New", "Calendar", "Kanban"],
+					depends_on: "eval: doc.link_type === 'DocType'",
+					description: __("Which view of the DocType should this link open?"),
+					onchange: function() {
+						const doc_view = this.get_value();
+						const kanban_field = dialog.get_field("kanban_board");
+						if (doc_view === "Kanban") {
+							kanban_field.df.hidden = 0;
+							kanban_field.df.reqd = 1;
+						} else {
+							kanban_field.df.hidden = 1;
+							kanban_field.df.reqd = 0;
+						}
+						dialog.refresh();
+					}
+				},
+				{
+					fieldname: "kanban_board",
+					fieldtype: "Link",
+					label: __("Kanban Board"),
+					options: "Kanban Board",
+					depends_on: "eval: doc.doc_view === 'Kanban'",
+					hidden: 1,
+					get_query: function() {
+						const link_to = dialog.get_value("link_to");
+						return {
+							filters: {
+								reference_doctype: link_to
+							}
+						};
+					}
+				},
+				{
+					fieldname: "section_count",
+					fieldtype: "Section Break",
+					label: __("Count Customization")
+				},
+				{
+					fieldname: "stats_filter",
+					fieldtype: "Code",
+					label: __("Count Filter"),
+					options: "JSON",
+					description: __("JSON filter to display count badge. Example: [[\"Task\",\"status\",\"=\",\"Open\"]]")
+				},
+				{
+					fieldname: "color",
+					fieldtype: "Color",
+					label: __("Color"),
+					description: __("Color for the count badge when count > 0")
 				}
 			],
 			primary_action_label: __("Add"),
@@ -2834,18 +3004,62 @@ frappe.views.Workspace = class Workspace {
 		const link_to = values.link_type === "URL" ? values.url : values.link_to;
 		const link_id = `${values.link_type}-${frappe.router.slug(link_to)}`;
 
-		// Create link HTML
+		// Determine route based on doc_view
+		let route = link_to;
+		if (values.link_type === 'DocType' && values.doc_view) {
+			const doctype_slug = frappe.router.slug(link_to);
+			switch (values.doc_view) {
+				case "List":
+					route = `/app/${doctype_slug}/view/list`;
+					break;
+				case "Tree":
+					route = `/app/${doctype_slug}/view/tree`;
+					break;
+				case "Report Builder":
+					route = `/app/${doctype_slug}/view/report`;
+					break;
+				case "Dashboard":
+					route = `/app/${doctype_slug}/view/dashboard`;
+					break;
+				case "New":
+					route = `/app/${doctype_slug}/new`;
+					break;
+				case "Calendar":
+					route = `/app/${doctype_slug}/view/calendar/default`;
+					break;
+				case "Kanban":
+					route = `/app/${doctype_slug}/view/kanban`;
+					if (values.kanban_board) {
+						route += `/${values.kanban_board}`;
+					}
+					break;
+				default:
+					route = `/app/${doctype_slug}`;
+			}
+		} else if (values.link_type === 'DocType') {
+			route = `/app/${frappe.router.slug(link_to)}`;
+		} else if (values.link_type === 'Page') {
+			route = `/app/${frappe.router.slug(link_to)}`;
+		} else if (values.link_type === 'Report') {
+			route = `/app/query-report/${frappe.router.slug(link_to)}`;
+		}
+
+		// Create link HTML with new fields
 		const is_default_class = values.is_default ? 'is-default-link' : '';
 		const link_html = `
 			<div class="sidebar-link is-draggable is-custom-link ${is_default_class}"
 			     data-link-id="${link_id}"
-			     data-route="${link_to}"
+			     data-route="${route}"
 			     data-link-to="${link_to}"
 			     data-link-type="${values.link_type}"
 			     data-label="${frappe.utils.escape_html(values.label)}"
 			     data-icon="${values.icon}"
 			     data-is-custom="1"
-			     data-is-default="${values.is_default ? 1 : 0}">
+			     data-is-default="${values.is_default ? 1 : 0}"
+			     data-doc-view="${values.doc_view || ''}"
+			     data-kanban-board="${values.kanban_board || ''}"
+			     data-color="${values.color || ''}"
+			     data-stats-filter="${(values.stats_filter || '').replace(/"/g, '&quot;')}">
 				<div class="drag-handle">
 					<svg class="icon icon-xs"><use href="#icon-drag"></use></svg>
 				</div>

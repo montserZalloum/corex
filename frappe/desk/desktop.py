@@ -788,7 +788,11 @@ def get_user_sidebar_links(workspace_name):
 					"icon": link.icon,
 					"is_custom": link.is_custom,
 					"is_default": link.is_default,
-					"idx": link.idx
+					"idx": link.idx,
+					"doc_view": getattr(link, "doc_view", None),
+					"kanban_board": getattr(link, "kanban_board", None),
+					"color": getattr(link, "color", None),
+					"stats_filter": getattr(link, "stats_filter", None)
 				})
 
 		hidden_links = frappe.parse_json(doc.hidden_default_links or "[]")
@@ -822,7 +826,11 @@ def get_user_sidebar_links(workspace_name):
 						"icon": link.icon,
 						"is_custom": False,
 						"is_default": link.is_default,
-						"idx": link.idx
+						"idx": link.idx,
+						"doc_view": getattr(link, "doc_view", None),
+						"kanban_board": getattr(link, "kanban_board", None),
+						"color": getattr(link, "color", None),
+						"stats_filter": getattr(link, "stats_filter", None)
 					})
 
 			return {
@@ -849,7 +857,11 @@ def get_user_sidebar_links(workspace_name):
 				"link_to": link.link_to,
 				"label": link.label,
 				"icon": link.icon,
-				"is_custom": False
+				"is_custom": False,
+				"doc_view": getattr(link, "doc_view", None),
+				"kanban_board": getattr(link, "kanban_board", None),
+				"color": getattr(link, "color", None),
+				"stats_filter": getattr(link, "stats_filter", None)
 			})
 
 	return {
@@ -912,7 +924,11 @@ def save_user_sidebar(workspace_name, links, hidden_links=None):
 			"icon": link.get("icon"),
 			"idx": idx,
 			"is_custom": link.get("is_custom", 0),
-			"is_default": link.get("is_default", 0)
+			"is_default": link.get("is_default", 0),
+			"doc_view": link.get("doc_view"),
+			"kanban_board": link.get("kanban_board"),
+			"color": link.get("color"),
+			"stats_filter": link.get("stats_filter")
 		})
 
 	doc.hidden_default_links = frappe.as_json(hidden_links)

@@ -454,7 +454,12 @@ def copy_sidebar_on_duplicate(source_workspace_name, target_workspace_name, is_p
 					"label": link.label,
 					"icon": link.icon,
 					"is_custom": link.is_custom,
-					"idx": link.idx
+					"idx": link.idx,
+					"doc_view": getattr(link, "doc_view", None),
+					"kanban_board": getattr(link, "kanban_board", None),
+					"color": getattr(link, "color", None),
+					"stats_filter": getattr(link, "stats_filter", None),
+					"is_default": getattr(link, "is_default", 0)
 				})
 
 			new_sidebar.insert(ignore_permissions=True)
@@ -502,7 +507,12 @@ def copy_sidebar_on_duplicate(source_workspace_name, target_workspace_name, is_p
 						"label": link.label,
 						"icon": link.icon,
 						"is_custom": False,
-						"idx": link.idx
+						"idx": link.idx,
+						"doc_view": getattr(link, "doc_view", None),
+						"kanban_board": getattr(link, "kanban_board", None),
+						"color": getattr(link, "color", None),
+						"stats_filter": getattr(link, "stats_filter", None),
+						"is_default": getattr(link, "is_default", 0)
 					})
 
 				new_user_sidebar.insert(ignore_permissions=True)

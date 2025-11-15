@@ -10,6 +10,12 @@
   "column_break_2",
   "label",
   "icon",
+  "section_break_view",
+  "doc_view",
+  "kanban_board",
+  "section_break_count",
+  "stats_filter",
+  "color",
   "is_custom",
   "is_default"
  ],
@@ -46,6 +52,42 @@
    "fieldtype": "Icon",
    "in_list_view": 1,
    "label": "Icon"
+  },
+  {
+   "fieldname": "section_break_view",
+   "fieldtype": "Section Break",
+   "label": "DocType View"
+  },
+  {
+   "depends_on": "eval:doc.link_type == \"DocType\"",
+   "description": "Which view of the associated DocType should this shortcut take you to?",
+   "fieldname": "doc_view",
+   "fieldtype": "Select",
+   "label": "DocType View",
+   "options": "\nList\nReport Builder\nDashboard\nTree\nNew\nCalendar\nKanban"
+  },
+  {
+   "depends_on": "eval:doc.doc_view == \"Kanban\"",
+   "fieldname": "kanban_board",
+   "fieldtype": "Link",
+   "label": "Kanban Board",
+   "options": "Kanban Board"
+  },
+  {
+   "fieldname": "section_break_count",
+   "fieldtype": "Section Break",
+   "label": "Count Customization"
+  },
+  {
+   "fieldname": "stats_filter",
+   "fieldtype": "Code",
+   "label": "Count Filter",
+   "options": "JSON"
+  },
+  {
+   "fieldname": "color",
+   "fieldtype": "Color",
+   "label": "Color"
   },
   {
    "default": "0",
