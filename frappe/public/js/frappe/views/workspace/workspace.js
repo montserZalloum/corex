@@ -3409,8 +3409,44 @@ frappe.views.Workspace = class Workspace {
 
 	cleanup_window_pages($window) {
 		const $content = $window.find(".window-content");
+
 		// Remove any cloned page views in this window
 		$content.find(".window-page-view").remove();
+
+		// Remove all event listeners attached to window elements
+		// Window control buttons
+		$window.find(".btn-window-close").off("click");
+		$window.find(".btn-window-minimize").off("click");
+		$window.find(".btn-window-maximize").off("click");
+
+		// Content mousedown listener (sets active window)
+		$window.find(".window-content").off("mousedown");
+
+		// Sidebar link listeners
+		$window.find(".sidebar-link").off("click");
+		$window.find(".sidebar-home-link").off("click");
+
+		// Window title bar listeners (dragging)
+		$window.find(".window-titlebar").off("mousedown");
+
+		// Resize handle listeners
+		$window.find(".resize-handle").off("mousedown");
+
+		// Remove global window listeners attached for dragging and resizing
+		const dragHandlers = $window.data("drag-handlers");
+		if (dragHandlers) {
+			$(window).off("mousemove", dragHandlers.move);
+			$(window).off("mouseup", dragHandlers.up);
+		}
+
+		const resizeHandlers = $window.data("resize-handlers");
+		if (resizeHandlers) {
+			$(window).off("mousemove", resizeHandlers.move);
+			$(window).off("mouseup", resizeHandlers.up);
+		}
+
+		// Clear all jQuery data stored on the window
+		$window.removeData();
 	}
 
 	initialize_window_editor(editor_id, blocks) {
