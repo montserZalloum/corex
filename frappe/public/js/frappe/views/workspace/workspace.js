@@ -2266,16 +2266,18 @@ frappe.views.Workspace = class Workspace {
 
 			const is_custom_class = link.is_custom ? 'is-custom-link' : '';
 		const is_draggable_class = !page.public ? 'is-draggable' : '';
+		const is_default_class = link.is_default ? 'is-default-link' : '';
 
 			const link_html = `
-				<div class="sidebar-link ${is_draggable_class} ${is_custom_class}"
+				<div class="sidebar-link ${is_draggable_class} ${is_custom_class} ${is_default_class}"
 				     data-link-id="${link_id}"
 				     data-route="${route}"
 				     data-link-to="${link.link_to}"
 				     data-link-type="${link.link_type}"
 				     data-label="${frappe.utils.escape_html(label)}"
 				     data-icon="${icon}"
-				     data-is-custom="${link.is_custom ? 1 : 0}">
+				     data-is-custom="${link.is_custom ? 1 : 0}"
+				     data-is-default="${link.is_default ? 1 : 0}">
 					<div class="drag-handle">
 						<svg class="icon icon-xs">
 							<use href="#icon-drag"></use>
@@ -2308,6 +2310,12 @@ frappe.views.Workspace = class Workspace {
 
 		// Enable drag-and-drop reordering
 		this.setup_sidebar_sortable($window, page);
+
+		// Setup handlers for default link checkbox in edit mode
+		this.setup_default_link_handlers($window);
+
+		// Navigate to default link if set
+		this.navigate_to_default_link($window);
 
 		// Edit mode is now controlled by the main window edit button
 	}
@@ -2344,6 +2352,93 @@ frappe.views.Workspace = class Workspace {
 
 			// Navigate using frappe router
 			frappe.set_route(route);
+		});
+	}
+
+	navigate_to_default_link($window) {
+		/**
+		 * Navigate to the default link for the workspace
+		 * Finds the link marked with is_default = true and navigates to it
+		 * Only navigates on first sidebar load
+		 */
+		const self = this;
+
+		// Check if navigation is already in progress for this window
+		const navigationInProgress = $window.data("default-link-navigation-in-progress");
+		if (navigationInProgress) {
+			console.log("[Default Link Navigation] Navigation already in progress, skipping");
+			return;
+		}
+
+		// Find the link marked as default
+		const $defaultLink = $window.find(".sidebar-link.is-default-link").first();
+
+		console.log("[Default Link Navigation] Looking for default link, found:", $defaultLink.length > 0);
+
+		if ($defaultLink.length) {
+			// Get the route from the data attribute
+			const route = $defaultLink.data("route");
+
+			console.log("[Default Link Navigation] Default link route:", route);
+
+			if (route) {
+				// Mark navigation as in progress
+				$window.data("default-link-navigation-in-progress", true);
+
+				// Use setTimeout to ensure navigation happens after DOM is fully ready
+				// and click handlers are attached
+				setTimeout(() => {
+					console.log("[Default Link Navigation] Navigating to default link route:", route);
+
+					// Set this window as active
+					self.active_workspace_window = $window;
+					$window.data("is-active", true);
+
+					// Remove active class from all links
+					$window.find(".sidebar-link").removeClass("active");
+
+					// Add active class to default link
+					$defaultLink.addClass("active");
+
+					// Store current route
+					$window.data("current-route", route);
+
+					// Navigate using frappe router
+					frappe.set_route(route);
+				}, 150);
+			}
+		}
+	}
+
+	setup_default_link_handlers($window) {
+		/**
+		 * Setup handlers for is_default checkbox in edit mode
+		 * When one link is marked as default, uncheck all others
+		 */
+		const self = this;
+		const $linksContainer = $window.find(".sidebar-links");
+
+		// Handle checkbox changes in edit mode
+		$linksContainer.on("change", ".is-default-checkbox", function() {
+			const $checkbox = $(this);
+			const $link = $checkbox.closest(".sidebar-link");
+			const isDefault = $checkbox.is(":checked");
+
+			if (isDefault) {
+				// Uncheck all other links
+				$linksContainer.find(".sidebar-link").each(function() {
+					if (this !== $link[0]) {
+						$(this).removeClass("is-default-link").attr("data-is-default", "0");
+						const $otherCheckbox = $(this).find(".is-default-checkbox");
+						if ($otherCheckbox.length) {
+							$otherCheckbox.prop("checked", false);
+						}
+					}
+				});
+				$link.addClass("is-default-link").attr("data-is-default", "1");
+			} else {
+				$link.removeClass("is-default-link").attr("data-is-default", "0");
+			}
 		});
 	}
 
@@ -2578,7 +2673,8 @@ frappe.views.Workspace = class Workspace {
 				link_to: $link.data("link-to"),
 				label: $link.data("label"),
 				icon: $link.data("icon"),
-				is_custom: $link.data("is-custom") ? 1 : 0
+				is_custom: $link.data("is-custom") ? 1 : 0,
+				is_default: $link.data("is-default") ? 1 : 0
 			});
 		});
 
@@ -2690,6 +2786,13 @@ frappe.views.Workspace = class Workspace {
 					fieldtype: "Data",
 					label: __("Icon"),
 					default: "file"
+				},
+				{
+					fieldname: "is_default",
+					fieldtype: "Check",
+					label: __("Is Default Link"),
+					default: 0,
+					description: __("Check to make this the default link that opens when workspace is accessed")
 				}
 			],
 			primary_action_label: __("Add"),
@@ -2721,19 +2824,28 @@ frappe.views.Workspace = class Workspace {
 	add_link_to_sidebar($window, page, values) {
 		const $links_container = $window.find(".sidebar-links");
 
+		// If marking this link as default, uncheck others
+		if (values.is_default) {
+			$links_container.find(".sidebar-link").each(function() {
+				$(this).removeClass("is-default-link").attr("data-is-default", "0");
+			});
+		}
+
 		const link_to = values.link_type === "URL" ? values.url : values.link_to;
 		const link_id = `${values.link_type}-${frappe.router.slug(link_to)}`;
 
 		// Create link HTML
+		const is_default_class = values.is_default ? 'is-default-link' : '';
 		const link_html = `
-			<div class="sidebar-link is-draggable is-custom-link"
+			<div class="sidebar-link is-draggable is-custom-link ${is_default_class}"
 			     data-link-id="${link_id}"
 			     data-route="${link_to}"
 			     data-link-to="${link_to}"
 			     data-link-type="${values.link_type}"
 			     data-label="${frappe.utils.escape_html(values.label)}"
 			     data-icon="${values.icon}"
-			     data-is-custom="1">
+			     data-is-custom="1"
+			     data-is-default="${values.is_default ? 1 : 0}">
 				<div class="drag-handle">
 					<svg class="icon icon-xs"><use href="#icon-drag"></use></svg>
 				</div>

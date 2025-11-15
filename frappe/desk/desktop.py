@@ -787,6 +787,7 @@ def get_user_sidebar_links(workspace_name):
 					"label": link.label,
 					"icon": link.icon,
 					"is_custom": link.is_custom,
+					"is_default": link.is_default,
 					"idx": link.idx
 				})
 
@@ -820,6 +821,7 @@ def get_user_sidebar_links(workspace_name):
 						"label": link.label,
 						"icon": link.icon,
 						"is_custom": False,
+						"is_default": link.is_default,
 						"idx": link.idx
 					})
 
@@ -909,7 +911,8 @@ def save_user_sidebar(workspace_name, links, hidden_links=None):
 			"label": link.get("label"),
 			"icon": link.get("icon"),
 			"idx": idx,
-			"is_custom": link.get("is_custom", 0)
+			"is_custom": link.get("is_custom", 0),
+			"is_default": link.get("is_default", 0)
 		})
 
 	doc.hidden_default_links = frappe.as_json(hidden_links)

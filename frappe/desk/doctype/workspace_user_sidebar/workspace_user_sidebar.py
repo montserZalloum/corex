@@ -27,6 +27,9 @@ class WorkspaceUserSidebar(Document):
 		# Validate all links have permission
 		self.validate_link_permissions()
 
+		# Validate only one default link
+		self.validate_only_one_default_link()
+
 		# Update last modified timestamp
 		self.last_modified = frappe.utils.now()
 
@@ -38,6 +41,16 @@ class WorkspaceUserSidebar(Document):
 					_("You don't have permission to add {0} to your sidebar").format(link.label),
 					frappe.PermissionError
 				)
+
+	def validate_only_one_default_link(self):
+		"""Ensure only one link is marked as default"""
+		default_links = [link for link in self.sidebar_links if link.is_default]
+
+		if len(default_links) > 1:
+			frappe.throw(
+				_("Only one sidebar link can be marked as default. Please uncheck the others."),
+				frappe.ValidationError
+			)
 
 
 def has_permission_for_link_row(link):

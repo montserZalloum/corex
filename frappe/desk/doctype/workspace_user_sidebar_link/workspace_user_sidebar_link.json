@@ -10,7 +10,8 @@
   "column_break_2",
   "label",
   "icon",
-  "is_custom"
+  "is_custom",
+  "is_default"
  ],
  "fields": [
   {
@@ -52,6 +53,13 @@
    "fieldname": "is_custom",
    "fieldtype": "Check",
    "label": "Is Custom Link"
+  },
+  {
+   "default": "0",
+   "description": "Check to make this the default link that opens when the workspace is accessed",
+   "fieldname": "is_default",
+   "fieldtype": "Check",
+   "label": "Is Default Link"
   }
  ],
  "index_web_pages_for_search": 1,
