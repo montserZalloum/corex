@@ -910,19 +910,8 @@ $shadow-ultra: 0 30px 80px rgba(0, 0, 0, 0.2);
 }
 
 // Multiple window stacking effect
-.workspace-window:nth-child(2) {
-	left: 90px;
-	top: 90px;
-	z-index: 999;
-}
 
-.workspace-window:nth-child(3) {
-	left: 120px;
-	top: 120px;
-	z-index: 998;
-}
-
-.workspace-window:nth-child(n+4) {
+.workspace-window {
 	left: calc(60px + ((var(--index, 4) - 1) * 30px));
 	top: calc(60px + ((var(--index, 4) - 1) * 30px));
 	z-index: calc(1000 - var(--index, 4));

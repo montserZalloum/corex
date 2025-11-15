@@ -1620,7 +1620,7 @@ frappe.views.Workspace = class Workspace {
 		// Create a unique window ID for this workspace
 		// Use timestamp + random to avoid issues with special characters in workspace names (like @ in emails)
 		const window_id = `workspace-window-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-
+		const windowIndex = document.querySelectorAll('.workspace-window').length + 1;
 		// Increment z-index for new windows (always on top)
 		this.window_z_index += 1;
 		const current_z_index = this.window_z_index;
@@ -1630,7 +1630,7 @@ frappe.views.Workspace = class Workspace {
 
 		// Create window container with inner content area
 		const $window = $(`
-			<div class="workspace-window" id="${window_id}" data-page-name="${page.name}" data-page-public="${page.public}" style="z-index: ${current_z_index};">
+			<div class="workspace-window"  id="${window_id}" data-page-name="${page.name}" data-page-public="${page.public}" style="--index:${windowIndex};z-index: ${current_z_index};">
 				<div class="window-titlebar">
 					<div class="window-breadcrumb">
 						<span class="window-title">${display_title}</span>
