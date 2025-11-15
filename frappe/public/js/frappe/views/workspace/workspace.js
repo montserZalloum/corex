@@ -2783,7 +2783,7 @@ frappe.views.Workspace = class Workspace {
 				},
 				{
 					fieldname: "icon",
-					fieldtype: "Data",
+					fieldtype: "Icon",
 					label: __("Icon"),
 					default: "file"
 				},
