@@ -2236,6 +2236,17 @@ frappe.views.Workspace = class Workspace {
 		`;
 		$sidebar.append(header_html);
 
+		// Create sidebar Home link (root of workspace)
+		const home_link_html = `
+			<div class="sidebar-home-link sidebar-link" data-is-home="true" title="Home">
+				<svg class="icon icon-sm sidebar-link-icon">
+					<use href="#icon-home"></use>
+				</svg>
+				<span class="sidebar-link-label">Home</span>
+			</div>
+		`;
+		$sidebar.append(home_link_html);
+
 		// Create sidebar links container
 		const $links_container = $('<div class="sidebar-links"></div>');
 
@@ -2375,6 +2386,51 @@ frappe.views.Workspace = class Workspace {
 			e.stopPropagation();
 
 			const $link = $(this);
+
+			// Handle Home link specially
+			if ($link.data("is-home")) {
+				// Set this window as active
+				self.active_workspace_window = $window;
+				$window.data("is-active", true);
+
+				// Clear the route stack since Home is the root
+				$window.data("route-stack", []);
+				console.log("[Home Link] Cleared route stack for workspace");
+
+				// Remove active class from all links
+				$window.find(".sidebar-link").removeClass("active");
+
+				// Mark Home link as active
+				$link.addClass("active");
+
+				// Clear any stored page
+				$window.data("current-page", null);
+				$window.data("workspace-active-page", null);
+
+				// Show workspace content instead of navigating
+				const $content = $window.find(".window-content");
+				$content.find(".window-page-view").remove();
+				$content.find(".desk-page").show();
+
+				// Hide back button since we're at root
+				$window.find(".btn-window-back").hide();
+
+				// Clear breadcrumb
+				$window.find(".breadcrumb-trail").html("");
+
+				// Navigate to workspace route
+				const workspacePage = $window.data("workspace-page");
+				if (workspacePage) {
+					const workspaceRouteParts = workspacePage.public
+						? [frappe.router.slug(workspacePage.name)]
+						: ['private', frappe.router.slug(workspacePage.name)];
+					frappe.set_route(workspaceRouteParts);
+				}
+
+				return;
+			}
+
+			// Regular link navigation
 			const route = $link.data("route");
 
 			if (!route) return;
@@ -3244,11 +3300,22 @@ frappe.views.Workspace = class Workspace {
 		// Get current route from window location
 		const currentRoute = window.location.pathname;
 
+		// Check if we're on the workspace root (no page shown)
+		const $content = $window.find(".window-content");
+		const isOnWorkspaceRoot = !$content.find(".window-page-view").is(":visible") && $content.find(".desk-page").is(":visible");
+		const routeStack = $window.data("route-stack") || [];
+
 		// Remove active class from all sidebar links in this window
 		$window.find(".sidebar-link").removeClass("active");
 
-		// Find and highlight the matching link
-		$window.find(".sidebar-link").each(function() {
+		// If on workspace root, mark Home link as active
+		if (isOnWorkspaceRoot || routeStack.length === 0) {
+			$window.find(".sidebar-home-link").addClass("active");
+			return;
+		}
+
+		// Find and highlight the matching regular link
+		$window.find(".sidebar-link:not(.sidebar-home-link)").each(function() {
 			const $link = $(this);
 			const linkRoute = $link.data("route");
 
@@ -3292,8 +3359,8 @@ frappe.views.Workspace = class Workspace {
 			return;
 		}
 
-		// No history - show workspace content
-		console.log(`[${workspaceName}] No more history - showing workspace`);
+		// No history - show workspace content (back to Home/root)
+		console.log(`[${workspaceName}] No more history - showing workspace (HOME)`);
 
 		// Hide any page views
 		$content.find(".window-page-view").remove();
@@ -3301,7 +3368,7 @@ frappe.views.Workspace = class Workspace {
 		// Show workspace content
 		$content.find(".desk-page").show();
 
-		// Hide back button
+		// Hide back button (we're at root, can't go further back)
 		$window.find(".btn-window-back").hide();
 
 		// Clear breadcrumb
@@ -3311,8 +3378,9 @@ frappe.views.Workspace = class Workspace {
 		$window.data("current-page", null);
 		$window.data("workspace-active-page", null);
 
-		// Clear sidebar active state
+		// Clear sidebar active state and mark Home as active
 		$window.find(".sidebar-link").removeClass("active");
+		$window.find(".sidebar-home-link").addClass("active");
 
 		// Navigate to workspace route
 		const workspacePage = $window.data("workspace-page");
