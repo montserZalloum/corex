@@ -2206,7 +2206,7 @@ frappe.views.Workspace = class Workspace {
 				if (r.message) {
 					self.render_sidebar($window, page, r.message);
 				} else {
-					$sidebar.html('<div class="sidebar-empty">No shortcuts available</div>');
+					$sidebar.html('<div class="sidebar-empty"></div>');
 				}
 			},
 			error: () => {
@@ -2223,7 +2223,7 @@ frappe.views.Workspace = class Workspace {
 		const is_customized = sidebar_data.is_customized || false;
 
 		if (links.length === 0) {
-			$sidebar.html('<div class="sidebar-empty">No shortcuts available</div>');
+			$sidebar.html('<div class="sidebar-empty"></div>');
 			return;
 		}
 
