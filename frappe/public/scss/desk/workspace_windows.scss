@@ -435,6 +435,7 @@ $shadow-ultra: 0 30px 80px rgba(0, 0, 0, 0.2);
 	color: #374151;
 	font-size: 13px;
 	position: relative;
+	touch-action: none; // Allow drag operations
 
 	&:hover {
 		background: rgba(99, 102, 241, 0.08);
@@ -538,6 +539,8 @@ $shadow-ultra: 0 30px 80px rgba(0, 0, 0, 0.2);
 	opacity: 0;
 	transition: opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 	flex-shrink: 0;
+	pointer-events: auto; // Ensure drag handle can receive mouse events
+	touch-action: none; // Prevent default touch behavior for drag
 
 	.icon {
 		width: 12px;

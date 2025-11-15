@@ -2829,7 +2829,7 @@ frappe.views.Workspace = class Workspace {
 		const links = [];
 
 		// Collect all links from DOM
-		$window.find(".sidebar-link").each(function() {
+		$window.find(".sidebar-link:not(.sidebar-home-link)").each(function() {
 			const $link = $(this);
 			links.push({
 				link_type: $link.data("link-type"),
