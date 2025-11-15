@@ -23,7 +23,7 @@
    "reqd": 1
   },
   {
-   "depends_on": "eval:doc.link_type != 'URL'",
+   "depends_on": "eval:doc.link_type != \"URL\"",
    "fieldname": "link_to",
    "fieldtype": "Dynamic Link",
    "in_list_view": 1,
