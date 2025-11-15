@@ -916,6 +916,9 @@ $shadow-ultra: 0 30px 80px rgba(0, 0, 0, 0.2);
 	top: calc(60px + ((var(--index, 4) - 1) * 30px));
 	z-index: calc(1000 - var(--index, 4));
 }
+.workspace-window.closing-window {
+	filter: blur(10px);
+}
 
 // Responsive Design
 @media (max-width: 1200px) {

@@ -1627,10 +1627,12 @@ frappe.views.Workspace = class Workspace {
 
 		// Display title: use provided title or fall back to name
 		const display_title = page.title || page.name;
-
-		// Create window container with inner content area
+		let title = page.title.toLowerCase().split(' ').join('-')
+		let worksSpaceLink = page.public ? title : 'private/'+title
+		
+		// Create window container with inner content area 
 		const $window = $(`
-			<div class="workspace-window"  id="${window_id}" data-page-name="${page.name}" data-page-public="${page.public}" style="--index:${windowIndex};z-index: ${current_z_index};">
+			<div class="workspace-window" data-workspace-link="/${worksSpaceLink}" id="${window_id}" data-page-name="${page.name}" data-page-public="${page.public}" style="--index:${windowIndex};z-index: ${current_z_index};">
 				<div class="window-titlebar">
 					<div class="window-breadcrumb">
 						<span class="window-title">${display_title}</span>
@@ -1687,20 +1689,36 @@ frappe.views.Workspace = class Workspace {
 
 		// Add window control handlers with smooth transitions
 		$window.find(".btn-window-close").on("click", () => {
-			// Remove from minimized windows list if applicable
-			if ($window.hasClass("minimized-to-dock")) {
-				const windowId = $window.attr("id");
-				this.minimized_windows = this.minimized_windows.filter(w => w.id !== windowId);
-				this.update_dock_visibility();
-				// Remove dock item
-				this.dock_element.find(`[data-window-id="${windowId}"]`).remove();
+			$window.addClass('closing-window')
+			// Trigger home link click to navigate to workspace before closing
+			// This ensures the route is properly updated to the workspace route
+			const $home_link = $window.find(".sidebar-home-link");
+			if ($home_link.length) {
+				$home_link.trigger("click");
+			} else {
+				// Fallback: use workspace-link data attribute if home link doesn't exist
+				const workspaceLink = $window.data('workspace-link');
+				if (workspaceLink) {
+					frappe.set_route(workspaceLink);
+				}
 			}
+			// Delay closing to allow navigation to complete
+			setTimeout(() => {
+				// Remove from minimized windows list if applicable
+				if ($window.hasClass("minimized-to-dock")) {
+					const windowId = $window.attr("id");
+					this.minimized_windows = this.minimized_windows.filter(w => w.id !== windowId);
+					this.update_dock_visibility();
+					// Remove dock item
+					this.dock_element.find(`[data-window-id="${windowId}"]`).remove();
+				}
 
-			// Remove all pages created for this window
-			this.cleanup_window_pages($window);
-			$window.fadeOut(200, function() {
-				$(this).remove();
-			});
+				// Remove all pages created for this window
+				this.cleanup_window_pages($window);
+				$window.fadeOut(200, function() {
+					$(this).remove();
+				});
+			}, 100);
 		});
 
 		$window.find(".btn-window-minimize").on("click", () => {
@@ -2311,8 +2329,8 @@ frappe.views.Workspace = class Workspace {
 			}
 
 			const is_custom_class = link.is_custom ? 'is-custom-link' : '';
-		const is_draggable_class = !page.public ? 'is-draggable' : '';
-		const is_default_class = link.is_default ? 'is-default-link' : '';
+			const is_draggable_class = !page.public ? 'is-draggable' : '';
+			const is_default_class = link.is_default ? 'is-default-link' : '';
 
 			const link_html = `
 				<div class="sidebar-link ${is_draggable_class} ${is_custom_class} ${is_default_class}"
@@ -2419,12 +2437,9 @@ frappe.views.Workspace = class Workspace {
 				$window.find(".breadcrumb-trail").html("");
 
 				// Navigate to workspace route
-				const workspacePage = $window.data("workspace-page");
+				const workspacePage = $window.data("workspace-link");
 				if (workspacePage) {
-					const workspaceRouteParts = workspacePage.public
-						? [frappe.router.slug(workspacePage.name)]
-						: ['private', frappe.router.slug(workspacePage.name)];
-					frappe.set_route(workspaceRouteParts);
+					frappe.set_route(workspacePage);
 				}
 
 				return;
