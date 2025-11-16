@@ -769,13 +769,6 @@ frappe.views.Workspace = class Workspace {
 					default: item.title,
 				},
 				{
-					label: __("Parent"),
-					fieldtype: "Select",
-					fieldname: "parent",
-					options: parent_pages,
-					default: item.parent_page,
-				},
-				{
 					label: __("Public"),
 					fieldtype: "Check",
 					fieldname: "is_public",
@@ -1097,13 +1090,6 @@ frappe.views.Workspace = class Workspace {
 					reqd: 1,
 				},
 				{
-					label: __("Parent"),
-					fieldtype: "Select",
-					fieldname: "parent",
-					options: parent_pages,
-					default: new_page.parent_page,
-				},
-				{
 					label: __("Public"),
 					fieldtype: "Check",
 					fieldname: "is_public",
@@ -1342,12 +1328,6 @@ frappe.views.Workspace = class Workspace {
 					fieldtype: "Data",
 					fieldname: "title",
 					reqd: 1,
-				},
-				{
-					label: __("Parent"),
-					fieldtype: "Select",
-					fieldname: "parent",
-					options: this.private_parent_pages,
 				},
 				{
 					label: __("Public"),

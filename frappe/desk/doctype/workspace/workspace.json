@@ -144,7 +144,8 @@
    "fieldname": "parent_page",
    "fieldtype": "Data",
    "label": "Parent Page",
-   "read_only": 1
+   "read_only": 1,
+   "hidden": 1
   },
   {
    "default": "[]",
