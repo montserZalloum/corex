@@ -418,7 +418,10 @@ def get_desktop_page(page):
 def get_doctype_workspace(doctype):
 	"""
 	Find the workspace that contains a given DocType.
-	Uses the DocType's module to find the corresponding workspace.
+	Priority order:
+	1. Check if DocType has a custom workspace field set
+	2. Try to find workspace by module name
+	3. Check if any workspace has a link to this DocType
 
 	Args:
 		doctype (str): Name of the DocType
@@ -433,7 +436,24 @@ def get_doctype_workspace(doctype):
 		if not meta:
 			return None
 
-		# Get the module name
+		# Priority 1: Check if DocType has a custom workspace field set
+		doctype_doc = frappe.get_doc("DocType", doctype)
+		if doctype_doc and doctype_doc.get("workspace"):
+			custom_workspace_name = doctype_doc.workspace
+			workspace = frappe.db.get_value(
+				"Workspace",
+				custom_workspace_name,
+				["name", "title", "public"],
+				as_dict=True
+			)
+
+			if workspace:
+				return {
+					"name": workspace.title,
+					"public": workspace.public
+				}
+
+		# Priority 2: Get the module name and try to find workspace by module
 		module = meta.module
 
 		# Try to find workspace by module name
@@ -451,7 +471,7 @@ def get_doctype_workspace(doctype):
 				"public": workspace.public
 			}
 
-		# Fallback: Check if any workspace has a link to this DocType
+		# Priority 3: Fallback - Check if any workspace has a link to this DocType
 		workspace_links = frappe.get_all(
 			"Workspace Link",
 			filters={

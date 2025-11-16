@@ -32,6 +32,13 @@ frappe.ui.form.on("DocType", {
 	},
 
 	refresh: function (frm) {
+		// Filter workspace field to show only public workspaces
+		frm.set_query("workspace", function (doc) {
+			return {
+				filters: [["Workspace", "public", "=", 1]],
+			};
+		});
+
 		frm.set_query("role", "permissions", function (doc) {
 			if (doc.custom && frappe.session.user != "Administrator") {
 				return {

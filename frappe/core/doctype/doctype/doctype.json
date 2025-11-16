@@ -60,6 +60,7 @@
   "default_view",
   "force_re_route_to_default_view",
   "column_break_29",
+  "workspace",
   "document_type",
   "icon",
   "color",
@@ -355,6 +356,14 @@
   {
    "fieldname": "column_break_29",
    "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:!doc.istable",
+   "description": "Select the workspace where this DocType should appear",
+   "fieldname": "workspace",
+   "fieldtype": "Link",
+   "label": "Workspace",
+   "options": "Workspace"
   },
   {
    "fieldname": "document_type",

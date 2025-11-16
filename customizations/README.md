@@ -2,9 +2,10 @@
 
 **System:** Aurevia Bench - Frappe Framework
 **Documentation Created:** 2025-11-13
-**Total Customizations Documented:** 15 major features
-**Total Documentation:** 2,825 lines across 5 comprehensive guides
-**Total Size:** 120 KB
+**Last Updated:** 2025-11-16
+**Total Customizations Documented:** 16 major features
+**Total Documentation:** 2,900+ lines across 5 comprehensive guides
+**Total Size:** 125 KB
 
 ---
 
@@ -129,6 +130,7 @@ This will guide you to exactly what you need in 2-5 minutes.
 | 13 | Clone to Private | Backend | desktop.py | ✅ Active |
 | 14 | Awesome Bar Integration | Frontend | awesome_bar.js | ✅ Active |
 | 15 | SCSS Styling System | Styling | workspace_windows.scss | ✅ Active |
+| 16 | DocType Workspace Link | DocType + Backend | doctype.json, desktop.py | ✅ Active |
 
 **Full descriptions:** See [MASTER_INDEX.md](MASTER_INDEX.md) → Customization Catalog
 

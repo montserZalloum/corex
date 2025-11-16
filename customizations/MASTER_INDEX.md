@@ -1,7 +1,7 @@
 # Frappe Customization Master Index
 
-**Last Updated:** 2025-11-13
-**Total Customizations:** 15 major modifications
+**Last Updated:** 2025-11-16
+**Total Customizations:** 16 major modifications
 **System:** Aurevia Bench - Frappe Framework
 **Location:** `/home/corex/aurevia-bench/customizations/`
 
@@ -15,11 +15,12 @@
 |----------|-------|
 | **New DocTypes** | 3 |
 | **Python Backend Files Modified** | 4 |
-| **JavaScript Frontend Files Modified** | 3 |
+| **JavaScript Frontend Files Modified** | 4 |
 | **SCSS Stylesheet Files Modified** | 3 |
+| **JSON Configuration Files Updated** | 1 |
 | **Documentation Files Created** | 2 |
 | **Configuration Files Updated** | 2 |
-| **Total Features Added** | 15+ |
+| **Total Features Added** | 16+ |
 
 ### Modification Summary by Type
 
@@ -27,10 +28,11 @@
 Backend (Python)        ████████░░ 4 files
 Frontend (JavaScript)   ███░░░░░░░ 3 files
 Styling (SCSS)          ███░░░░░░░ 3 files
+Config (JSON)           █░░░░░░░░░ 1 file
 DocTypes                ██░░░░░░░░ 3 new
 Docs/Config             ████░░░░░░ 4 files
 ──────────────────────────────────────
-Total Impact            17 files modified/created
+Total Impact            18 files modified/created
 ```
 
 ---
@@ -575,6 +577,70 @@ workspace-windows.scss:
 - ✅ Dark mode support
 
 **Status:** Active - UI Framework
+
+---
+
+### 1️⃣6️⃣ DOCTYPE WORKSPACE LINK CUSTOMIZATION
+
+**Feature:** Allow DocTypes to specify their preferred workspace for display
+
+**Purpose:** Enable system administrators to control which workspace a DocType appears in, overriding the default module-based workspace assignment.
+
+**Files Modified:**
+- **DocType Definition:** `/home/corex/aurevia-bench/apps/frappe/frappe/core/doctype/doctype/doctype.json`
+  - New field: `workspace` (Link type)
+  - Depends on: `eval:!doc.istable`
+  - References: Workspace DocType (public only)
+
+- **Frontend Script:** `/home/corex/aurevia-bench/apps/frappe/frappe/core/doctype/doctype/doctype.js`
+  - Added workspace field filter in `refresh()` function
+  - Shows only public workspaces in the dropdown
+
+- **Backend API:** `/home/corex/aurevia-bench/apps/frappe/frappe/desk/desktop.py`
+  - Function: `get_doctype_workspace()` (lines 418-504)
+  - Modified to check custom workspace field first
+
+**Field Details:**
+```json
+{
+  "depends_on": "eval:!doc.istable",
+  "description": "Select the workspace where this DocType should appear",
+  "fieldname": "workspace",
+  "fieldtype": "Link",
+  "label": "Workspace",
+  "options": "Workspace"
+}
+```
+
+**Functionality:**
+- ✅ DocType can specify a custom workspace
+- ✅ Only available for non-table DocTypes
+- ✅ Dropdown shows only public workspaces (private workspaces excluded)
+- ✅ Frontend filtering prevents selection of private workspaces
+- ✅ Three-tier priority system:
+  1. Custom workspace (if set on DocType)
+  2. Module-based workspace (default behavior)
+  3. Workspace with DocType link (fallback)
+
+**API Behavior:**
+The `get_doctype_workspace(doctype)` function now:
+1. First checks if DocType has custom `workspace` field set
+2. Falls back to finding workspace by module name
+3. Final fallback to checking Workspace Links
+4. Returns workspace info with `name` and `public` fields
+
+**Use Cases:**
+- Move DocType from its default module workspace to custom workspace
+- Override system-generated workspace assignments
+- Better organization of related DocTypes across different workspaces
+- Admin control over workspace composition without modifying workspace definitions
+
+**Permissions:**
+- Only System Manager and Administrator can modify
+- Affects all users' workspace view (global impact)
+- Validation ensures referenced workspace exists
+
+**Status:** Active - Field Addition & API Enhancement
 
 ---
 
