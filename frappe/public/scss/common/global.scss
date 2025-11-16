@@ -166,6 +166,7 @@ body.full-width .container {
 #body {
 	& > .page-container:first-of-type {
 		.cx-ROOT-layout {
+			padding-top: 100px;
 			& > .cx-layout-wrapper {
 				height:0!important;
 				& > .layout-main-section {

@@ -367,8 +367,8 @@ frappe.views.Workspace = class Workspace {
 			const href = $e.find("span use").attr("href");
 			const isCollapsed = href === "#es-line-down";
 			let icon = isCollapsed ? "#es-line-right-chevron" : "#es-line-down";
-			$e.find("span use").attr("href", icon);
-			$e.parent().find(".sidebar-item-container").toggleClass("hidden");
+			$e.find("span use").attr("href", icon); 
+			$e.parents('.standard-sidebar-section').find(".sidebar-item-container").toggleClass("hidden");
 			$e.attr("aria-expanded", String(!isCollapsed));
 		});
 
