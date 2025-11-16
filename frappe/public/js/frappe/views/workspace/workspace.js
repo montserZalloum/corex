@@ -1627,8 +1627,15 @@ frappe.views.Workspace = class Workspace {
 
 		// Display title: use provided title or fall back to name
 		const display_title = page.title || page.name;
-		let title = page.title.toLowerCase().split(' ').join('-')
-		let worksSpaceLink = page.public ? title : 'private/'+title
+		let title; 
+		let worksSpaceLink;
+		if (page.title) {
+			title = page.title.toLowerCase().split(' ').join('-');
+			worksSpaceLink = page.public ? title : 'private/'+title
+		} else {
+			title = page.name.toLowerCase().split(' ').join('-');
+			worksSpaceLink = page.public ? title : 'private/'+title
+		}
 		
 		// Create window container with inner content area 
 		const $window = $(`
@@ -4125,7 +4132,7 @@ frappe.views.Workspace = class Workspace {
 			console.log(`[Deep Link] Set active window, existing routing will handle page display`);
 			return;
 		}
-
+		
 		// Open new workspace window
 		this.open_workspace_window({ name: workspace.name, public: workspace.public });
 
