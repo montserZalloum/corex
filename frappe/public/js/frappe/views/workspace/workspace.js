@@ -2414,7 +2414,7 @@ frappe.views.Workspace = class Workspace {
 
 				// Show workspace content instead of navigating
 				const $content = $window.find(".window-content");
-				$content.find(".window-page-view").remove();
+				$content.find(".window-page-view").hide();
 				$content.find(".desk-page").show();
 
 				// Hide back button since we're at root
@@ -3262,17 +3262,31 @@ frappe.views.Workspace = class Workspace {
 		// Hide the workspace content
 		$content.find(".desk-page").hide();
 
-		// Hide all previously shown pages in this window
-		$content.find(".window-page-view").remove();
+		// Check if this page is already cached in this window
+		const $existingWrapper = $content.find(`.window-page-view[data-page-label="${label}"]`);
 
-		// Create a wrapper for the page content (don't move the actual page)
-		// This avoids DOM hierarchy issues
-		const $pageWrapper = $(`<div class="window-page-view" style="width: 100%; height: 100%; overflow: auto;"></div>`);
+		if ($existingWrapper.length > 0) {
+			// Page is already cached in this window - just show it
+			// Hide all other page views and show this one
+			$content.find(".window-page-view").hide();
+			$existingWrapper.show();
 
-		// Move the actual page element to the window (not cloning)
-		// This ensures all event handlers and Frappe functionality works
-		$pageWrapper.append($page);
-		$content.append($pageWrapper);
+			console.log(`[${workspaceName}] Showing cached page: ${label}`);
+		} else {
+			// New page - hide all previously shown pages (don't remove them)
+			$content.find(".window-page-view").hide();
+
+			// Create a wrapper for the page content
+			// This avoids DOM hierarchy issues and enables per-window caching
+			const $pageWrapper = $(`<div class="window-page-view" data-page-label="${label}" style="width: 100%; height: 100%; overflow: auto;"></div>`);
+
+			// Move the actual page element to the window (not cloning)
+			// This ensures all event handlers and Frappe functionality works
+			$pageWrapper.append($page);
+			$content.append($pageWrapper);
+
+			console.log(`[${workspaceName}] Created new cached page: ${label}`);
+		}
 
 		// Update breadcrumb
 		this.update_window_breadcrumb($window, label);
@@ -3364,8 +3378,8 @@ frappe.views.Workspace = class Workspace {
 		// No history - show workspace content (back to Home/root)
 		console.log(`[${workspaceName}] No more history - showing workspace (HOME)`);
 
-		// Hide any page views
-		$content.find(".window-page-view").remove();
+		// Hide any page views (preserve them in cache instead of removing)
+		$content.find(".window-page-view").hide();
 
 		// Show workspace content
 		$content.find(".desk-page").show();
@@ -3397,8 +3411,22 @@ frappe.views.Workspace = class Workspace {
 	cleanup_window_pages($window) {
 		const $content = $window.find(".window-content");
 
-		// Remove any cloned page views in this window
-		$content.find(".window-page-view").remove();
+		// Detach all pages from window wrappers and move them back to the main body
+		// This preserves the pages in frappe.pages for potential reuse
+		$content.find(".window-page-view").each((index, wrapper) => {
+			const $wrapper = $(wrapper);
+			const $pages = $wrapper.find(".page-container");
+
+			// Move pages back to main body (hidden)
+			$pages.each((idx, page) => {
+				const $page = $(page);
+				$page.hide(); // Hide before moving
+				$(document.body).append($page); // Move back to body
+			});
+
+			// Now remove the wrapper
+			$wrapper.remove();
+		});
 
 		// Remove all event listeners attached to window elements
 		// Window control buttons
