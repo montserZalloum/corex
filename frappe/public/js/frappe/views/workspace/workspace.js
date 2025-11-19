@@ -3286,12 +3286,12 @@ frappe.views.Workspace = class Workspace {
 			// Page is already cached in this window - just show it
 			// Hide all other page views and show this one
 			$content.find(".window-page-view").hide();
-			$existingWrapper.show();
-
-			// Also ensure the page container inside is visible
+			$existingWrapper.show().trigger('show'); 
+ 
+			// Also ensure the page container inside is visiblee
 			const $pageInWrapper = $existingWrapper.find(".page-container");
 			if ($pageInWrapper.length > 0) {
-				$pageInWrapper.show();
+				$pageInWrapper.show().trigger('show');
 			}
 
 			console.log(`[${workspaceName}] Showing cached page: ${label}`);
@@ -3306,7 +3306,7 @@ frappe.views.Workspace = class Workspace {
 			// Move the actual page element to the window (not cloning)
 			// This ensures all event handlers and Frappe functionality works
 			$pageWrapper.append($page);
-			$page.show(); // Ensure the page is visible (it might have been hidden during cleanup)
+			$page.show().trigger('show'); // Ensure the page is visible (it might have been hidden during cleanup)
 			$content.append($pageWrapper);
 
 			console.log(`[${workspaceName}] Created new cached page: ${label}`);
