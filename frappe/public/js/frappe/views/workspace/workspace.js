@@ -219,6 +219,10 @@ frappe.views.Workspace = class Workspace {
 				console.log("[Deep Link] Found pending deep link from page load:", frappe.workspace_deep_link.pending_deep_link);
 				const pending = frappe.workspace_deep_link.pending_deep_link;
 
+				// Set flag to indicate we're processing a deep link during initialization
+				// This prevents navigate_to_default_link from overriding the deep link
+				this.deep_link_processed_on_init = true;
+
 				// Handle the pending deep link
 				this.handle_pending_deep_link(pending);
 
@@ -2528,6 +2532,19 @@ frappe.views.Workspace = class Workspace {
 		 */
 		const self = this;
 
+		// Check if we're processing a deep link from page refresh/initialization
+		// If so, skip default link navigation to avoid overriding the deep link
+		if (this.deep_link_processed_on_init) {
+			console.log("[Default Link Navigation] Skipping - deep link was processed on init");
+			return;
+		}
+
+		// Check if there's a pending deep link being processed
+		if (frappe.workspace_deep_link && frappe.workspace_deep_link.pending_deep_link) {
+			console.log("[Default Link Navigation] Skipping - pending deep link exists");
+			return;
+		}
+
 		// Check if navigation is already in progress for this window
 		const navigationInProgress = $window.data("default-link-navigation-in-progress");
 		if (navigationInProgress) {
@@ -4182,6 +4199,12 @@ frappe.views.Workspace = class Workspace {
 				// Re-route to the original deep link to show in main view
 				setTimeout(() => {
 					frappe.set_route(pending.route);
+
+					// Clear the deep link processed flag after navigation completes
+					setTimeout(() => {
+						this.deep_link_processed_on_init = false;
+						console.log("[Deep Link] Cleared deep_link_processed_on_init flag");
+					}, 500);
 				}, 100);
 				return;
 			}
@@ -4199,6 +4222,13 @@ frappe.views.Workspace = class Workspace {
 		console.log("[Deep Link] Re-triggering original route in window:", pending.route);
 		setTimeout(() => {
 			frappe.set_route(pending.route);
+
+			// Clear the deep link processed flag after navigation completes
+			// This allows default link navigation to work on subsequent workspace loads
+			setTimeout(() => {
+				this.deep_link_processed_on_init = false;
+				console.log("[Deep Link] Cleared deep_link_processed_on_init flag");
+			}, 500);
 		}, 200);
 	}
 
