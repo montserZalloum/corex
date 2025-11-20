@@ -1620,10 +1620,9 @@ frappe.views.Workspace = class Workspace {
 			title = page.name.toLowerCase().split(' ').join('-');
 			worksSpaceLink = page.public ? title : 'private/'+title
 		}
-		
 		// Create window container with inner content area 
 		const $window = $(`
-			<div class="workspace-window" data-workspace-link="/${worksSpaceLink}" id="${window_id}" data-page-name="${page.name}" data-page-public="${page.public}" style="--index:${windowIndex};z-index: ${current_z_index};">
+			<div class="workspace-window" data-workspace-name-only="${display_title}" data-workspace-link="/${worksSpaceLink}" id="${window_id}" data-page-name="${page.name}" data-page-public="${page.public}" style="--index:${windowIndex};z-index: ${current_z_index};">
 				<div class="window-titlebar">
 					<div class="window-breadcrumb">
 						<span class="window-title">${display_title}</span>
@@ -3425,9 +3424,11 @@ frappe.views.Workspace = class Workspace {
 		// Navigate to workspace route
 		const workspacePage = $window.data("workspace-page");
 		if (workspacePage) {
+			// Use data-workspace-name-only for private workspaces to avoid email suffix issues
+			const workspaceNameOnly = $window.attr("data-workspace-name-only") || workspacePage.name;
 			const workspaceRouteParts = workspacePage.public
-				? [frappe.router.slug(workspacePage.name)]
-				: ['private', frappe.router.slug(workspacePage.name)];
+				? [frappe.router.slug(workspaceNameOnly)]
+				: ['private', frappe.router.slug(workspaceNameOnly)];
 			frappe.set_route(workspaceRouteParts);
 		}
 	}
