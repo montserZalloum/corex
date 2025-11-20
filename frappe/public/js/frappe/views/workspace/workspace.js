@@ -4064,7 +4064,7 @@ frappe.views.Workspace = class Workspace {
 	async handle_deep_link() {
 		// Check if current route is a deep link (non-workspace route)
 		const route = frappe.router.current_route;
-		
+
 		if (!route || route.length === 0) {
 			return false;
 		}
@@ -4087,6 +4087,13 @@ frappe.views.Workspace = class Workspace {
 		// Routes are like: ["Form", "User", "user-001"] or ["List", "User"]
 		const doctype = route[1];
 		if (!doctype) {
+			return false;
+		}
+
+		// Check if we already have a workspace window open for this
+		// If so, let the window routing handle the page display to avoid duplicate windows
+		if (this.active_workspace_window && this.active_workspace_window.is(":visible")) {
+			console.log("[Deep Link] Already have active workspace window, letting window routing handle page display");
 			return false;
 		}
 
