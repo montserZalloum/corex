@@ -88,9 +88,8 @@ frappe.search.utils = {
 						out.value = __("{0} Tree", [__(view_name)]);
 						break;
 					case "Workspaces":
-						out.label = __(view_name).bold();
-						out.value = __(view_name);
-						out.description = __("Workspace");
+						out.label = __("{0} Workspace", [__(view_name).bold()]);
+						out.value = __("{0} Workspace", [__(view_name)]);
 						break;
 					case "query-report":
 						out.label = __("{0} Report", [__(view_name).bold()]);
@@ -110,40 +109,22 @@ frappe.search.utils = {
 		return options;
 	},
 
-	// AFTER
-get_frequent_links() {
-    let options = [];
-    frappe.boot.frequently_visited_links.forEach((link) => {
-        let label;
-        // Check if this is a string route for a specific workspace
-        if (typeof link.route === 'string' && link.route.startsWith('Workspaces/')) {
-            // It is! Extract the specific name.
-            const parts = link.route.split('/');
-            if (parts.length > 1 && parts[1]) {
-                // The label is the name, e.g., "Users"
-                label = parts[1]; 
-            } else {
-                // Fallback for malformed route like "Workspaces/"
-                label = __("Workspaces");
-            }
-        } else {
-            // It's not a workspace route, use the default generic logic
-            label = frappe.utils.get_route_label(link.route);
-        }
-
-        options.push({
-            route: link.route,
-            label: label, // Use our new, smart label
-            value: label, // Use our new, smart label
-            description: __("Workspace"), // Add a helpful description
-            index: link.count,
-        });
-    });
-    if (!options.length) {
-        return this.get_recent_pages("");
-    }
-    return options;
-},
+	get_frequent_links() {
+		let options = [];
+		frappe.boot.frequently_visited_links.forEach((link) => {
+			const label = frappe.utils.get_route_label(link.route);
+			options.push({
+				route: link.route,
+				label: label,
+				value: label,
+				index: link.count,
+			});
+		});
+		if (!options.length) {
+			return this.get_recent_pages("");
+		}
+		return options;
+	},
 
 	get_search_in_list: function (keywords) {
 		var me = this;

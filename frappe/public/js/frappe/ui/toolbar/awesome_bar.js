@@ -433,7 +433,24 @@ frappe.search.AwesomeBar = class AwesomeBar {
 		// Check if this is a workspace route itself
 		const first_part = route_array[0];
 		if (first_part === "Workspaces" || route_array.includes("workspaces")) {
-			console.log("[Awesomebar] This is a workspace route, using default routing");
+			console.log("[Awesomebar] This is a workspace route, handling it by opening a window.");
+			
+			// The workspace title is the second part of the route, e.g., "Users" from ["Workspaces", "Users"]
+			const workspace_title = route_array[1];
+			if (!workspace_title) return false; // Not a valid workspace route
+		
+			// Find the full workspace object from the master list
+			const workspace_page = frappe.workspace.all_pages.find(p => p.title === workspace_title);
+		
+			if (workspace_page) {
+				// We found it! Open it in a new window.
+				frappe.workspace.open_workspace_window(workspace_page);
+				
+				// IMPORTANT: We handled the click, so return true to stop the default routing.
+				return true; 
+			}
+		
+			// If for some reason we can't find it, fallback to default.
 			return false;
 		}
 
