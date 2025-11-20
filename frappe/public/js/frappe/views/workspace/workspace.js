@@ -3266,9 +3266,12 @@ frappe.views.Workspace = class Workspace {
 		const workspaceName = $window.attr("data-workspace-name");
 		const routeStack = $window.data("route-stack");
 		const currentRoute = window.location.pathname;
+		const isNavigatingBack = $window.data("is-navigating-back");
 
-		// Only push if different from last route
-		if (routeStack.length === 0 || routeStack[routeStack.length - 1] !== currentRoute) {
+		// Only push if:
+		// 1. Not currently navigating back (to avoid infinite loop)
+		// 2. Route is different from the last route in stack
+		if (!isNavigatingBack && (routeStack.length === 0 || routeStack[routeStack.length - 1] !== currentRoute)) {
 			routeStack.push(currentRoute);
 			$window.data("route-stack", routeStack);
 			console.log(`[${workspaceName}] Pushed to stack: ${currentRoute}`);
@@ -3377,6 +3380,10 @@ frappe.views.Workspace = class Workspace {
 		// This ensures frappe.set_route() will navigate within THIS window, not another one
 		this.active_workspace_window = $window;
 
+		// Set flag to indicate we're navigating back
+		// This prevents the route from being pushed to stack during the navigation process
+		$window.data("is-navigating-back", true);
+
 		// Pop current route from stack
 		if (routeStack.length > 0) {
 			routeStack.pop();  // Remove current
@@ -3395,11 +3402,18 @@ frappe.views.Workspace = class Workspace {
 			const routeParts = previousRoute.replace('/app/', '').split('/').filter(p => p);
 			console.log(`[${workspaceName}] Navigating to:`, routeParts);
 			frappe.set_route(routeParts);
+			// Clear the flag after a short delay to allow the route to change
+			setTimeout(() => {
+				$window.data("is-navigating-back", false);
+			}, 100);
 			return;
 		}
 
 		// No history - show workspace content (back to Home/root)
 		console.log(`[${workspaceName}] No more history - showing workspace (HOME)`);
+
+		// Clear the navigating back flag
+		$window.data("is-navigating-back", false);
 
 		// Hide any page views (preserve them in cache instead of removing)
 		$content.find(".window-page-view").hide();
