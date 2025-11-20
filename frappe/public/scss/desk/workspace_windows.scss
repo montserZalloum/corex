@@ -109,6 +109,32 @@ $shadow-ultra: 0 30px 80px rgba(0, 0, 0, 0.2);
 		transition: none;
 		box-shadow: $shadow-ultra, inset 0 1px 0 rgba(255, 255, 255, 0.6);
 	}
+	&:has(.window-main .page-main-content[style*="display: none"]) .window-controls .btn-window-edit {
+		display: none;
+	}
+	&:not(.window-edit-mode) {
+		&[data-page-public="1"] .drag-handle,
+		&[data-page-public="true"] .drag-handle {
+			display: none;
+		}
+	}
+	&.window-edit-mode {
+		.sidebar-link {
+			pointer-events: none;
+		} 
+		.sidebar-link .drag-handle {
+			pointer-events: auto;
+		}
+		.codex-editor {
+			a {
+				pointer-events: none;
+			}
+		}
+		&[data-page-public="1"] .drag-handle,
+		&[data-page-public="true"] .drag-handle {
+			visibility: hidden;
+		}
+	}
 }
 
 @keyframes slideInMac {
