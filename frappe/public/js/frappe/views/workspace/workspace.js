@@ -3339,33 +3339,40 @@ frappe.views.Workspace = class Workspace {
 	}
 
 	update_sidebar_active_state($window) {
-		// Get current route from window location
-		const currentRoute = window.location.pathname;
+		// --- START: MODIFIED SECTION ---
 
-		// Check if we're on the workspace root (no page shown)
+		// 1. Use Frappe's router as the source of truth, not the browser's location.
+		// It's always in sync with the application's state, even during transitions.
+		const currentRouteArray = frappe.get_route();
+		const currentRoute = currentRouteArray.join('/').toLowerCase(); // e.g., "lead/view/list"
+		const original_url_currentRoute = decodeURIComponent(window.location.pathname);
+		
 		const $content = $window.find(".window-content");
-		const isOnWorkspaceRoot = !$content.find(".window-page-view").is(":visible") && $content.find(".desk-page").is(":visible");
-		const routeStack = $window.data("route-stack") || [];
+		const isOnWorkspaceRoot = !$content.find(".window-page-view").is(":visible");
 
-		// Remove active class from all sidebar links in this window
 		$window.find(".sidebar-link").removeClass("active");
-
-		// If on workspace root, mark Home link as active
-		if (isOnWorkspaceRoot || routeStack.length === 0) {
+		// This logic for the "Home" link is still correct.
+		if (isOnWorkspaceRoot || currentRouteArray.length === 0) {
 			$window.find(".sidebar-home-link").addClass("active");
 			return;
 		}
 
-		// Find and highlight the matching regular link
 		$window.find(".sidebar-link:not(.sidebar-home-link)").each(function() {
 			const $link = $(this);
-			const linkRoute = $link.data("route");
+			const originalLinkRoute = $link.data("route");
+			const originak_linkRoute = $link.data("route");
 
-			// Check if the current route matches or starts with this link's route
-			if (currentRoute === linkRoute || currentRoute.startsWith(linkRoute + '/')) {
+			if (!originalLinkRoute) return;
+
+			// 2. Normalize the link's stored route in the same way as before.
+			const linkRoute = originalLinkRoute.replace(/^\/app\//, '').replace(/\/$/, '');
+			// 3. The robust startsWith check will now work reliably.
+			if (currentRoute.startsWith(linkRoute) || original_url_currentRoute === originak_linkRoute || original_url_currentRoute.startsWith(originak_linkRoute + '/')) {
 				$link.addClass("active");
 			}
 		});
+
+		// --- END: MODIFIED SECTION ---
 	}
 
 	show_workspace_content_in_window($window) {
