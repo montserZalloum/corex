@@ -30,16 +30,8 @@ frappe.search.AwesomeBar = class AwesomeBar {
 			},
 			item: function (item, term) {
 				const d = this.get_item(item.value);
-				let target = "#";
-				if (d.route) {
-					target = frappe.router.make_url(
-						frappe.router.convert_from_standard_route(
-							frappe.router.get_route_from_arguments(
-								typeof d.route === "string" ? [d.route] : d.route
-							)
-						)
-					);
-				}
+				// Don't use actual route as href to prevent automatic navigation
+				// The route is stored in data attribute and handled by awesomplete-select event
 				let html = `<span>${__(d.label || d.value)}</span>`;
 
 				if (d.description && d.value !== d.description) {
@@ -49,7 +41,7 @@ frappe.search.AwesomeBar = class AwesomeBar {
 
 				return $("<li></li>")
 					.data("item.autocomplete", d)
-					.html(`<a style="font-weight:normal" href="${target}">${html}</a>`)
+					.html(`<a style="font-weight:normal" href="javascript:void(0)">${html}</a>`)
 					.get(0);
 			},
 			sort: function (a, b) {
@@ -108,7 +100,18 @@ frappe.search.AwesomeBar = class AwesomeBar {
 		});
 
 		$input.on("awesomplete-select", async function (e) {
+			// CRITICAL: Prevent ALL default behaviors FIRST to avoid race condition
+			e.preventDefault();
+			e.stopPropagation();
+
 			var o = e.originalEvent;
+
+			// Also prevent the underlying click event if it exists
+			if (o && o.originalEvent) {
+				o.originalEvent.preventDefault();
+				o.originalEvent.stopPropagation();
+			}
+
 			var value = o.text.value;
 			var item = awesomplete.get_item(value);
 
@@ -130,11 +133,9 @@ frappe.search.AwesomeBar = class AwesomeBar {
 					window.open(item.route[0], "_blank");
 					return;
 				}
-
 				// WORKSPACE WINDOW INTEGRATION
 				// If workspace system is available, try to open result in a workspace window
 				const handled = await me.handle_awesomebar_selection(item.route);
-
 				if (!handled) {
 					// Fallback to default routing if not handled by workspace system
 					frappe.set_route(item.route);
@@ -392,7 +393,6 @@ frappe.search.AwesomeBar = class AwesomeBar {
 	async handle_awesomebar_selection(route) {
 		// Handle awesomebar selection to open in workspace windows
 		// This integrates with the OS-like desktop experience
-
 		console.log("[Awesomebar] Handling selection (raw):", route, typeof route);
 		// Check if workspace system is available
 		if (!frappe.workspace) {
