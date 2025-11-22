@@ -179,6 +179,11 @@ body.full-width .container {
 					margin: 0;
 				}
 			}
+			& > .layout-side-section > .list-sidebar > .sidebar-menu {
+				.sidebar-item-container[item-name="Home"]:has([href="/app/home"]) {
+					display: none!important;
+				}
+			}
 		}
 	} 
 	& > .cx-page-body {
