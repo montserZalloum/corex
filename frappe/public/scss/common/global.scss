@@ -180,7 +180,8 @@ body.full-width .container {
 				}
 			}
 			& > .layout-side-section > .list-sidebar > .sidebar-menu {
-				.sidebar-item-container[item-name="Home"]:has([href="/app/home"]) {
+				.sidebar-item-container[item-name="Home"]:has([href="/app/home"]),
+				.sidebar-item-container .btn-reset.drop-icon.show-in-edit-mode {
 					display: none!important;
 				}
 			}
