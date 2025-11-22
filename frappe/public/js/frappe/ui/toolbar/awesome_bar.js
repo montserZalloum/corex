@@ -394,7 +394,6 @@ frappe.search.AwesomeBar = class AwesomeBar {
 		// This integrates with the OS-like desktop experience
 
 		console.log("[Awesomebar] Handling selection (raw):", route, typeof route);
-
 		// Check if workspace system is available
 		if (!frappe.workspace) {
 			console.log("[Awesomebar] Workspace system not available, using default routing");
@@ -482,9 +481,8 @@ frappe.search.AwesomeBar = class AwesomeBar {
 		}
 
 		console.log(`[Awesomebar] Doctype route detected: ${first_part} for ${doctype}`);
-
 		try {
-			// Find the appropriate workspace for this doctype 
+			// Find the appropriate workspace for this doctype
 			let workspace = await frappe.workspace.find_workspace_for_doctype(doctype);
 
 			if (!workspace) {
@@ -533,12 +531,11 @@ frappe.search.AwesomeBar = class AwesomeBar {
 				return true; // We handled it, skip default routing
 			}
 
-			// Different route - navigate directly to avoid race condition
-			// The window routing system will catch it and display in the window
-			console.log(`[Awesomebar] Navigating to route in workspace window`);
-			frappe.set_route(route_array);
+			// Different route - let the default frappe.set_route() be called
+			// The existing window routing system will catch it and display in the window
+			console.log(`[Awesomebar] Workspace window opened, letting default routing handle navigation`);
 
-			return true; // We handled it completely, prevent default routing
+			return false; // Let default routing happen in the workspace window
 		} catch (error) {
 			console.error("[Awesomebar] Error handling workspace selection:", error);
 			return false; // Fallback to default routing
