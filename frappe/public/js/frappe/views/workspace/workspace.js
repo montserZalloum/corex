@@ -3406,7 +3406,7 @@ frappe.views.Workspace = class Workspace {
 		// Check if we have a previous route
 		if (previousRoute) {
 			// Navigate to previous route (will use THIS window because we set it as active above)
-			const routeParts = previousRoute.replace('/app/', '').split('/').filter(p => p);
+			const routeParts = previousRoute.replace('/app/', '').split('/').filter(p => p).map(p => decodeURIComponent(p));
 			console.log(`[${workspaceName}] Navigating to:`, routeParts);
 			frappe.set_route(routeParts);
 			// Clear the flag after a short delay to allow the route to change
