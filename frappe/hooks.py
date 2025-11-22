@@ -539,7 +539,7 @@ standard_help_items = [
 	{
 		"item_label": "Corex Support",
 		"item_type": "Route",
-		"route": "https://www.y-denka.com",
+		"route": "https://ygroup.jp",
 		"is_standard": 1,
 	},
 ]
