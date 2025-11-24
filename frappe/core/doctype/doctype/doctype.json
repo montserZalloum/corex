@@ -358,7 +358,6 @@
    "fieldtype": "Column Break"
   },
   {
-   "depends_on": "eval:!doc.istable",
    "description": "Select the workspace where this DocType should appear",
    "fieldname": "workspace",
    "fieldtype": "Link",
