@@ -2544,6 +2544,13 @@ frappe.views.Workspace = class Workspace {
 			return;
 		}
 
+		// FIXED: Check if awesome bar selection is in progress
+		// If so, skip default link navigation to avoid overriding the awesome bar selection
+		if ($window.data("awesomebar-selection-in-progress")) {
+			console.log("[Default Link Navigation] Skipping - awesome bar selection in progress");
+			return;
+		}
+
 		// Check if navigation is already in progress for this window
 		const navigationInProgress = $window.data("default-link-navigation-in-progress");
 		if (navigationInProgress) {
@@ -3192,6 +3199,14 @@ frappe.views.Workspace = class Workspace {
 			// Check if there's an active workspace window
 			if (self.active_workspace_window && self.active_workspace_window.is(":visible")) {
 				console.log(`[Deep Link] Showing page in window instead of main view`);
+
+			// FIXED: Clear awesome bar selection flag after page is shown
+			// This allows default link navigation to work on subsequent window loads
+			setTimeout(() => {
+				if (self.active_workspace_window) {
+					self.active_workspace_window.data("awesomebar-selection-in-progress", false);
+				}
+			}, 200);
 				// Prevent normal page change and show in window instead
 				return self.show_page_in_window(self.active_workspace_window, label);
 			}

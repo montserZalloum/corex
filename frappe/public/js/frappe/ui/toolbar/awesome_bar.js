@@ -537,6 +537,12 @@ frappe.search.AwesomeBar = class AwesomeBar {
 			// This ensures the window routing system is set up before the route changes.
 			console.log(`[Awesomebar] Workspace window opened, navigating to route:`, route_array);
 
+			// Mark the active window so navigate_to_default_link doesn't override this selection
+			if (frappe.workspace.active_workspace_window) {
+				frappe.workspace.active_workspace_window.data("awesomebar-selection-in-progress", true);
+				console.log(`[Awesomebar] Marked window to skip default link navigation`);
+			}
+
 			// Use a small timeout to ensure DOM is fully updated
 			setTimeout(() => {
 				frappe.set_route(route_array);
