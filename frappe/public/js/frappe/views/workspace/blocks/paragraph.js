@@ -84,6 +84,7 @@ export default class Paragraph extends Block {
 
 		let all_blocks = frappe.workspace_block.blocks;
 		Object.keys(all_blocks).forEach((key) => {
+			if (key == 'onboarding') return;
 			let $block_list_item = $(`
 				<div class="block-list-item dropdown-item">
 					<span class="dropdown-item-icon">${all_blocks[key].toolbox.icon}</span>

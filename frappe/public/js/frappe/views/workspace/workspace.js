@@ -3566,12 +3566,12 @@ frappe.views.Workspace = class Workspace {
 					page_data: this.page_data || [],
 				},
 			},
-			// onboarding: {
-			// 	class: this.blocks["onboarding"],
-			// 	config: {
-			// 		page_data: this.page_data || [],
-			// 	},
-			// },
+			onboarding: {
+				class: this.blocks["onboarding"],
+				config: {
+					page_data: this.page_data || [],
+				},
+			},
 			quick_list: {
 				class: this.blocks["quick_list"],
 				config: {
