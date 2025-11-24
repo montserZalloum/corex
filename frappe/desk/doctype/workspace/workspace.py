@@ -551,7 +551,20 @@ def delete_page(page):
 			)
 
 	if frappe.db.exists("Workspace", page.get("name")):
-		frappe.get_doc("Workspace", page.get("name")).delete(ignore_permissions=True)
+		workspace_name = page.get("name")
+
+		# Delete all Workspace User Sidebar entries linked to this workspace (private workspaces)
+		user_sidebars = frappe.get_all("Workspace User Sidebar", filters={"workspace": workspace_name})
+		for sidebar in user_sidebars:
+			frappe.delete_doc("Workspace User Sidebar", sidebar.name, ignore_permissions=True)
+
+		# Delete all Default Workspace Sidebar entries linked to this workspace (public workspaces)
+		default_sidebars = frappe.get_all("Default Workspace Sidebar", filters={"workspace": workspace_name})
+		for sidebar in default_sidebars:
+			frappe.delete_doc("Default Workspace Sidebar", sidebar.name, ignore_permissions=True)
+
+		# Delete the workspace itself
+		frappe.get_doc("Workspace", workspace_name).delete(ignore_permissions=True)
 
 	return {"name": page.get("name"), "public": page.get("public"), "title": page.get("title")}
 
