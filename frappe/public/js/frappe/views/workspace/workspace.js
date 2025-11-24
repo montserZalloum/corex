@@ -4280,7 +4280,7 @@ frappe.views.Workspace = class Workspace {
 		// Try to find a good fallback workspace to use when doctype isn't found
 		// Priority: Home > Tools > Build > First available
 
-		const fallback_names = ["Home", "Tools", "Build", "Website"];
+		const fallback_names = ["Tools", "Build", "Website"];
 
 		for (let name of fallback_names) {
 			const workspace = this.all_pages.find(p => p.title === name);
