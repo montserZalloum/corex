@@ -531,11 +531,18 @@ frappe.search.AwesomeBar = class AwesomeBar {
 				return true; // We handled it, skip default routing
 			}
 
-			// Different route - let the default frappe.set_route() be called
-			// The existing window routing system will catch it and display in the window
-			console.log(`[Awesomebar] Workspace window opened, letting default routing handle navigation`);
+			// Different route - we need to navigate to the route
+			// FIXED: Call frappe.set_route() here after window is opened,
+			// instead of returning false and letting awesome_bar.js call it.
+			// This ensures the window routing system is set up before the route changes.
+			console.log(`[Awesomebar] Workspace window opened, navigating to route:`, route_array);
 
-			return false; // Let default routing happen in the workspace window
+			// Use a small timeout to ensure DOM is fully updated
+			setTimeout(() => {
+				frappe.set_route(route_array);
+			}, 50);
+
+			return true; // We handled it, we're calling set_route ourselves
 		} catch (error) {
 			console.error("[Awesomebar] Error handling workspace selection:", error);
 			return false; // Fallback to default routing
