@@ -2257,11 +2257,49 @@ frappe.views.Workspace = class Workspace {
 
 		// Create sidebar links container
 		const $links_container = $('<div class="sidebar-links"></div>');
+		// Group links by categories
+		let current_category = null;
+		let $current_category_group = null;
 
-		// Build each link
-		links.forEach((link) => {
+		links.forEach((link, index) => {
+			// Handle Category links
+			if (link.link_type === 'Category') {
+				const icon = link.icon || 'folder';
+				const label = link.label || 'Category';
+				const category_id = `category-${frappe.router.slug(label)}-${index}`;
+
+				const is_draggable_class = !page.public ? 'is-draggable' : '';
+
+				// Create category header with collapse toggle
+				const category_html = `
+					<div class="sidebar-category ${is_draggable_class}" data-category-id="${category_id}">
+						<div class="sidebar-category-header" data-toggle="${category_id}">
+							<div class="drag-handle">
+								<svg class="icon icon-xs">
+									<use href="#icon-drag"></use>
+								</svg>
+							</div>
+							<svg class="icon icon-sm sidebar-category-icon">
+								<use href="#icon-${icon}"></use>
+							</svg>
+							<span class="sidebar-category-label">${label}</span>
+							<svg class="icon icon-xs sidebar-category-toggle">
+								<use href="#es-line-down"></use>
+							</svg>
+						</div>
+						<div class="sidebar-category-items" id="${category_id}"></div>
+					</div>
+				`;
+
+				$links_container.append(category_html);
+				current_category = category_id;
+				$current_category_group = $links_container.find(`#${category_id}`);
+				return;
+			}
+
+			// Skip invalid links (but Category links have no link_to)
 			if (!link.link_to) {
-				return; // Skip invalid links
+				return;
 			}
 
 			const icon = link.icon || 'file';
@@ -2348,7 +2386,12 @@ frappe.views.Workspace = class Workspace {
 				</div>
 			`;
 
-			$links_container.append(link_html);
+			// Append to category group if exists, otherwise to main container
+			if ($current_category_group) {
+				$current_category_group.append(link_html);
+			} else {
+				$links_container.append(link_html);
+			}
 		});
 
 		$sidebar.append($links_container);
@@ -2468,6 +2511,34 @@ frappe.views.Workspace = class Workspace {
 
 			// Navigate using frappe router
 			frappe.set_route(route);
+		});
+
+		// Setup category collapse/expand functionality
+		$window.find(".sidebar-category-header").off("click").on("click", function(e) {
+			// Don't collapse if clicking on drag handle
+			if ($(e.target).closest(".drag-handle").length > 0) {
+				return;
+			}
+
+			e.preventDefault();
+			e.stopPropagation();
+
+			const $header = $(this);
+			const $category = $header.closest(".sidebar-category");
+			const $items = $category.find(".sidebar-category-items");
+			const $toggle = $header.find(".sidebar-category-toggle");
+
+			// Toggle collapsed state
+			$category.toggleClass("collapsed");
+
+			// Rotate chevron icon
+			if ($category.hasClass("collapsed")) {
+				$toggle.css("transform", "rotate(-90deg)");
+				$items.slideUp(200);
+			} else {
+				$toggle.css("transform", "rotate(0deg)");
+				$items.slideDown(200);
+			}
 		});
 	}
 

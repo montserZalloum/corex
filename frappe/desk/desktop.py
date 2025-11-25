@@ -775,19 +775,20 @@ def update_onboarding_step(name, field, value):
 def get_user_sidebar_links(workspace_name):
 	"""
 	Get sidebar links for a workspace with permission filtering.
+	Handles "Category" type links by always including them.
 	Handles both standard 'Workspace' doctypes and core 'Module Def' workspaces.
 	"""
 	user = frappe.session.user
 
-	# --- MODIFIED PERMISSION CHECK ---
-	# Check if user has access to either the Workspace doc or the Module Def doc.
+	# --- PERMISSION CHECK ---
+	# This block remains unchanged.
 	has_workspace_access = frappe.db.exists("Workspace", workspace_name) and frappe.has_permission("Workspace", doc=workspace_name)
 	has_module_access = frappe.db.exists("Module Def", workspace_name) and frappe.has_permission("Module Def", doc=workspace_name)
 
 	if not (has_workspace_access or has_module_access):
 		frappe.throw(_("You don't have permission to access this workspace"))
 
-	# Priority 1: Check for user's custom sidebar (remains the same)
+	# Priority 1: Check for user's custom sidebar ("Workspace User Sidebar")
 	custom_sidebar_name = frappe.db.get_value(
 		"Workspace User Sidebar",
 		{"user": user, "workspace": workspace_name},
@@ -795,10 +796,10 @@ def get_user_sidebar_links(workspace_name):
 	)
 	if custom_sidebar_name:
 		doc = frappe.get_doc("Workspace User Sidebar", custom_sidebar_name)
-		# ... (rest of this block is the same as your original)
 		accessible_links = []
 		for link in doc.sidebar_links:
-			if has_permission_for_sidebar_link(link):
+			# MODIFICATION: Always include "Category" type links, otherwise check permission.
+			if link.link_type == "Category" or has_permission_for_sidebar_link(link):
 				accessible_links.append({
 					"link_type": link.link_type, "link_to": link.link_to, "label": link.label,
 					"icon": link.icon, "is_custom": link.is_custom, "is_default": link.is_default,
@@ -810,7 +811,7 @@ def get_user_sidebar_links(workspace_name):
 		return {"links": accessible_links, "hidden_links": hidden_links, "is_customized": True}
 
 
-	# Priority 2: Check for admin's default sidebar (remains the same)
+	# Priority 2: Check for admin's default sidebar ("Default Workspace Sidebar")
 	default_sidebar_name = frappe.db.get_value(
 		"Default Workspace Sidebar",
 		{"workspace": workspace_name},
@@ -819,10 +820,10 @@ def get_user_sidebar_links(workspace_name):
 	if default_sidebar_name:
 		try:
 			default_doc = frappe.get_doc("Default Workspace Sidebar", default_sidebar_name)
-			# ... (rest of this block is the same as your original)
 			accessible_links = []
 			for link in default_doc.sidebar_links:
-				if has_permission_for_sidebar_link(link):
+				# MODIFICATION: Apply the same logic for default sidebars.
+				if link.link_type == "Category" or has_permission_for_sidebar_link(link):
 					accessible_links.append({
 						"link_type": link.link_type, "link_to": link.link_to, "label": link.label,
 						"icon": link.icon, "is_custom": False, "is_default": link.is_default,
@@ -835,8 +836,7 @@ def get_user_sidebar_links(workspace_name):
 			pass
 
 
-	# --- MODIFIED FALLBACK LOGIC ---
-	# Priority 3: Fallback to Workspace DocType OR Module Def DocType
+	# Priority 3: Fallback to the base Workspace DocType OR Module Def DocType
 	workspace = None
 	try:
 		# First, try to get it as a standard Workspace document
@@ -849,22 +849,24 @@ def get_user_sidebar_links(workspace_name):
 			# If both fail, then it truly doesn't exist.
 			frappe.throw(_("Workspace {0} does not exist").format(workspace_name))
 
-	# Now that we have the 'workspace' object (either a Workspace or Module Def),
-	# process its links. Both DocTypes have a 'links' child table.
 	shortcuts = []
 	for link in workspace.links:
-		# Module Def links don't have a 'type' field, they are all shortcuts.
-		# Workspace links have a 'type' field.
-		link_type_in_workspace = getattr(link, "type", "shortcut")
+		# Safely get the link_type. Workspace has it, Module Def might not.
+		link_type = getattr(link, "link_type", None)
+		
+		# The original logic to check permissions for standard links.
+		is_permitted_shortcut = getattr(link, "type", "shortcut") == "shortcut" and has_permission_for_workspace_link(link)
 
-		if link_type_in_workspace == "shortcut" and has_permission_for_workspace_link(link):
+		# MODIFICATION: Apply the same logic for the fallback workspace links.
+		if link_type == "Category" or is_permitted_shortcut:
 			shortcuts.append({
-				"link_type": link.link_type or "DocType",
+				# Use the fetched type, fallback to "DocType" for older links (e.g., from Module Def)
+				"link_type": link_type or "DocType",
 				"link_to": link.link_to,
 				"label": link.label,
 				"icon": link.icon,
 				"is_custom": False,
-				"is_default": getattr(link, "is_default", 0), # Module Def links don't have this
+				"is_default": getattr(link, "is_default", 0),
 				"doc_view": getattr(link, "doc_view", None),
 				"kanban_board": getattr(link, "kanban_board", None),
 				"color": getattr(link, "color", None),
@@ -872,7 +874,7 @@ def get_user_sidebar_links(workspace_name):
 			})
 
 	return {"links": shortcuts, "hidden_links": [], "is_customized": False, "is_default": False}
-
+	
 # You will also need these helper functions, or integrate their logic
 def has_permission_for_sidebar_link(link):
 	# Implement your permission logic here, e.g., check for doctype/page access

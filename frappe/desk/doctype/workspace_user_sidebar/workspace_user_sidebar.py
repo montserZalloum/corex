@@ -61,6 +61,10 @@ def has_permission_for_link_row(link):
 	link_type = link.link_type
 	link_to = link.link_to
 
+	# Category links are just headers, no permission check needed
+	if link_type == "Category":
+		return True
+
 	# Skip if link_to is empty (for URLs)
 	if link_type == "URL":
 		return True

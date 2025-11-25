@@ -25,11 +25,11 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Link Type",
-   "options": "DocType\nPage\nReport\nURL",
+   "options": "DocType\nPage\nReport\nURL\nCategory",
    "reqd": 1
   },
   {
-   "depends_on": "eval:doc.link_type != \"URL\"",
+   "depends_on": "eval:doc.link_type != \"URL\" && doc.link_type != \"Category\"",
    "fieldname": "link_to",
    "fieldtype": "Dynamic Link",
    "in_list_view": 1,
@@ -37,6 +37,7 @@
    "options": "link_type"
   },
   {
+   "depends_on": "eval:doc.link_type != \"Category\"",
    "fieldname": "column_break_2",
    "fieldtype": "Column Break"
   },
@@ -54,12 +55,13 @@
    "label": "Icon"
   },
   {
+   "depends_on": "eval:doc.link_type != \"Category\"",
    "fieldname": "section_break_view",
    "fieldtype": "Section Break",
    "label": "DocType View"
   },
   {
-   "depends_on": "eval:doc.link_type == \"DocType\"",
+   "depends_on": "eval:doc.link_type == \"DocType\" && doc.link_type != \"Category\"",
    "description": "Which view of the associated DocType should this shortcut take you to?",
    "fieldname": "doc_view",
    "fieldtype": "Select",
@@ -67,30 +69,34 @@
    "options": "\nList\nReport Builder\nDashboard\nTree\nNew\nCalendar\nKanban"
   },
   {
-   "depends_on": "eval:doc.doc_view == \"Kanban\"",
+   "depends_on": "eval:doc.doc_view == \"Kanban\" && doc.link_type != \"Category\"",
    "fieldname": "kanban_board",
    "fieldtype": "Link",
    "label": "Kanban Board",
    "options": "Kanban Board"
   },
   {
+   "depends_on": "eval:doc.link_type != \"Category\"",
    "fieldname": "section_break_count",
    "fieldtype": "Section Break",
    "label": "Count Customization"
   },
   {
+   "depends_on": "eval:doc.link_type != \"Category\"",
    "fieldname": "stats_filter",
    "fieldtype": "Code",
    "label": "Count Filter",
    "options": "JSON"
   },
   {
+   "depends_on": "eval:doc.link_type != \"Category\"",
    "fieldname": "color",
    "fieldtype": "Color",
    "label": "Color"
   },
   {
    "default": "0",
+   "depends_on": "eval:doc.link_type != \"Category\"",
    "description": "Check if this is a custom link added by user (not from default workspace)",
    "fieldname": "is_custom",
    "fieldtype": "Check",
@@ -98,6 +104,7 @@
   },
   {
    "default": "0",
+   "depends_on": "eval:doc.link_type != \"Category\"",
    "description": "Check to make this the default link that opens when the workspace is accessed",
    "fieldname": "is_default",
    "fieldtype": "Check",

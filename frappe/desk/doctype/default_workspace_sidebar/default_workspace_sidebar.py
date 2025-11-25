@@ -56,6 +56,10 @@ class DefaultWorkspaceSidebar(Document):
 		link_type = link.link_type
 		link_to = link.link_to
 
+		# Category links are just headers, no validation needed
+		if link_type == "Category":
+			return True
+
 		# Skip URL validation
 		if link_type == "URL":
 			return True
