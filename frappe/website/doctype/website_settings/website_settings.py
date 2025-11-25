@@ -249,7 +249,7 @@ def get_website_settings(context=None):
 		context.theme = get_active_theme() or frappe._dict()
 
 	if not context.get("favicon"):
-		context["favicon"] = "/assets/frappe/images/frappe-favicon.svg"
+		context["favicon"] = "/assets/frappe/images/corex-logo.png"
 
 	if settings.favicon and settings.favicon != "attach_files:":
 		context["favicon"] = settings.favicon
