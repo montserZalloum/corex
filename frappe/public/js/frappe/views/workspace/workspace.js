@@ -1063,13 +1063,7 @@ frappe.views.Workspace = class Workspace {
 
 				this.page.clear_primary_action();
 				this.update_cached_values(page);
-
-				if (
-					this.current_page.name == page.title &&
-					this.current_page.public == page.public
-				) {
-					frappe.set_route("/");
-				}
+				frappe.set_route("/app");
 
 				this.make_sidebar();
 				this.show_sidebar_actions();
