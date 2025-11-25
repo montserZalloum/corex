@@ -2708,7 +2708,7 @@ frappe.views.Workspace = class Workspace {
 		// Skip sortable setup for public workspaces (sidebar is not customizable)
 		if (page.public || !$linksContainer.length) return;
 
-		// Initialize Sortable.js - supports both sidebar-link and sidebar-category elements
+		// Initialize Sortable.js for main container - supports both sidebar-link and sidebar-category elements
 		new Sortable($linksContainer[0], {
 			handle: ".drag-handle",
 			draggable: ".sidebar-link.is-draggable, .sidebar-category.is-draggable",
@@ -2716,11 +2716,30 @@ frappe.views.Workspace = class Workspace {
 			ghostClass: "sortable-ghost",
 			chosenClass: "sortable-chosen",
 			dragClass: "sortable-drag",
+			group: "workspace-sidebar",
 
 			onEnd: function(evt) {
 				// Save the new order after drag completes
 				self.save_sidebar_order($window, page);
 			}
+		});
+
+		// Initialize Sortable.js for category items containers - allow dragging items in/out
+		$linksContainer.find(".sidebar-category-items").each(function() {
+			new Sortable(this, {
+				handle: ".drag-handle",
+				draggable: ".sidebar-link.is-draggable",
+				animation: 150,
+				ghostClass: "sortable-ghost",
+				chosenClass: "sortable-chosen",
+				dragClass: "sortable-drag",
+				group: "workspace-sidebar",
+
+				onEnd: function(evt) {
+					// Save the new order after drag completes
+					self.save_sidebar_order($window, page);
+				}
+			});
 		});
 	}
 
@@ -2737,41 +2756,68 @@ frappe.views.Workspace = class Workspace {
 		// Create a map of current links for quick lookup
 		sidebar_data.forEach((link, index) => {
 			if (link.link_type === "Category") {
-				idToLinkMap[`category-${link.label}`] = { ...link, idx: index + 1 };
+				idToLinkMap[`category-${link.label}`] = { ...link };
 			} else {
-				idToLinkMap[`${link.link_type}-${link.link_to}`] = { ...link, idx: index + 1 };
+				idToLinkMap[`${link.link_type}-${link.link_to}`] = { ...link };
 			}
 		});
 
-		// Collect current order from DOM (both links and categories)
-		$linksContainer.find(".sidebar-link.is-draggable, .sidebar-category.is-draggable").each(function(index) {
+		let global_idx = 1;
+
+		// Collect current order from DOM - process both categories and links at root level
+		$linksContainer.children().each(function(index) {
 			const $elem = $(this);
-			let link_data;
 
 			if ($elem.hasClass("sidebar-category")) {
 				// It's a category
 				const label = $elem.find(".sidebar-category-label").text();
-				link_data = idToLinkMap[`category-${label}`];
+				let link_data = idToLinkMap[`category-${label}`];
 				if (!link_data) {
 					link_data = {
 						link_type: "Category",
 						label: label,
-						icon: $elem.find(".sidebar-category-icon").attr("data-icon") || "folder",
-						idx: index + 1
+						icon: $elem.find(".sidebar-category-icon").attr("data-icon") || "folder"
 					};
 				}
-			} else {
-				// It's a regular link
+				link_data.idx = global_idx;
+				new_order.push(link_data);
+				global_idx++;
+
+				// Also collect links inside this category
+				$elem.find(".sidebar-category-items .sidebar-link.is-draggable").each(function() {
+					const $link = $(this);
+					const link_type = $link.data("link-type");
+					const link_to = $link.data("link-to");
+					let link_item = idToLinkMap[`${link_type}-${link_to}`];
+					if (!link_item) {
+						link_item = {
+							link_type: link_type,
+							link_to: link_to,
+							label: $link.data("label"),
+							icon: $link.data("icon"),
+							is_custom: $link.data("is-custom"),
+							is_default: $link.data("is-default"),
+							doc_view: $link.data("doc-view"),
+							kanban_board: $link.data("kanban-board"),
+							color: $link.data("color"),
+							stats_filter: $link.data("stats-filter")
+						};
+					}
+					link_item.idx = global_idx;
+					new_order.push(link_item);
+					global_idx++;
+				});
+			} else if ($elem.hasClass("sidebar-link")) {
+				// It's a regular link at root level (not inside a category)
 				const link_type = $elem.data("link-type");
 				const link_to = $elem.data("link-to");
-				link_data = idToLinkMap[`${link_type}-${link_to}`];
+				let link_data = idToLinkMap[`${link_type}-${link_to}`];
 				if (!link_data) {
 					link_data = {
 						link_type: link_type,
 						link_to: link_to,
 						label: $elem.data("label"),
 						icon: $elem.data("icon"),
-						idx: index + 1,
 						is_custom: $elem.data("is-custom"),
 						is_default: $elem.data("is-default"),
 						doc_view: $elem.data("doc-view"),
@@ -2780,11 +2826,10 @@ frappe.views.Workspace = class Workspace {
 						stats_filter: $elem.data("stats-filter")
 					};
 				}
+				link_data.idx = global_idx;
+				new_order.push(link_data);
+				global_idx++;
 			}
-
-			// Update idx to match new position
-			link_data.idx = index + 1;
-			new_order.push(link_data);
 		});
 
 		// Call backend to save the new order
