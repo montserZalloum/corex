@@ -2272,7 +2272,7 @@ frappe.views.Workspace = class Workspace {
 
 				// Create category header with collapse toggle
 				const category_html = `
-					<div class="sidebar-category ${is_draggable_class}" data-category-id="${category_id}">
+					<div class="sidebar-category sidebar-link ${is_draggable_class}" data-category-id="${category_id}">
 						<div class="sidebar-category-header" data-toggle="${category_id}">
 							<div class="drag-handle">
 								<svg class="icon icon-xs">
@@ -2401,10 +2401,10 @@ frappe.views.Workspace = class Workspace {
 		$window.data("sidebar-links", links);
 
 		// Load and apply localStorage saved order (for drag-drop Phase 2)
-		const saved_order = this.load_sidebar_order($window, page);
-		if (saved_order) {
-			this.apply_sidebar_order($window, saved_order);
-		}
+		// const saved_order = this.load_sidebar_order($window, page);
+		// if (saved_order) {
+		// 	this.apply_sidebar_order($window, saved_order);
+		// }
 
 		// Add click handlers for sidebar links
 		this.setup_sidebar_navigation($window);
@@ -2940,7 +2940,7 @@ frappe.views.Workspace = class Workspace {
 				stats_filter: $link.data("stats-filter") || null
 			});
 		});
-
+		
 		// Save to backend
 		frappe.call({
 			method: "frappe.desk.desktop.save_user_sidebar",
@@ -2994,10 +2994,11 @@ frappe.views.Workspace = class Workspace {
 
 	show_add_link_dialog($window, page) {
 		const self = this;
-
 		// Get permitted link options from backend
 		frappe.call({
 			method: "frappe.desk.desktop.get_permitted_link_options",
+			freeze: true,
+    		freeze_message: "Loading...",
 			callback: (r) => {
 				if (r.message) {
 					self.render_add_link_dialog($window, page, r.message);
@@ -3016,12 +3017,37 @@ frappe.views.Workspace = class Workspace {
 					fieldname: "link_type",
 					fieldtype: "Select",
 					label: __("Link Type"),
-					options: ["DocType", "Page", "Report", "URL"],
+					options: ["DocType", "Page", "Report", "URL","Category"],
 					reqd: 1,
 					onchange: function() {
 						const link_type = this.get_value();
-						dialog.get_field("link_to").df.hidden = link_type === "URL";
-						dialog.get_field("url").df.hidden = link_type !== "URL";
+						const is_category = link_type === "Category";
+						const is_url = link_type === "URL";
+
+						// Show/hide link_to field
+						dialog.get_field("link_to").df.hidden = is_category || is_url;
+						dialog.get_field("link_to").df.reqd = !is_category && !is_url;
+
+						// Show/hide URL field
+						dialog.get_field("url").df.hidden = !is_url;
+						dialog.get_field("url").df.reqd = is_url;
+
+						// Show/hide is_default field (Categories cannot be default)
+						dialog.get_field("is_default").df.hidden = is_category;
+						if (is_category) {
+							dialog.set_value("is_default", 0);
+						}
+
+						// Show/hide section_view and related fields
+						dialog.get_field("section_view").df.hidden = is_category;
+						dialog.get_field("doc_view").df.hidden = is_category;
+						dialog.get_field("kanban_board").df.hidden = is_category;
+
+						// Show/hide section_count and related fields
+						dialog.get_field("section_count").df.hidden = is_category;
+						dialog.get_field("stats_filter").df.hidden = is_category;
+						dialog.get_field("color").df.hidden = is_category;
+
 						dialog.refresh();
 					}
 				},
@@ -3119,6 +3145,17 @@ frappe.views.Workspace = class Workspace {
 			],
 			primary_action_label: __("Add"),
 			primary_action: (values) => {
+				// Validate that Category links have label and icon
+				if (values.link_type === "Category") {
+					if (!values.label) {
+						frappe.msgprint(__("Label is required for Category links"));
+						return;
+					}
+					if (!values.icon) {
+						frappe.msgprint(__("Icon is required for Category links"));
+						return;
+					}
+				}
 				self.add_link_to_sidebar($window, page, values);
 				dialog.hide();
 			}
@@ -3146,11 +3183,38 @@ frappe.views.Workspace = class Workspace {
 	add_link_to_sidebar($window, page, values) {
 		const $links_container = $window.find(".sidebar-links");
 
-		// If marking this link as default, uncheck others
-		if (values.is_default) {
+		// If marking this link as default, uncheck others (skip for Category)
+		if (values.is_default && values.link_type !== "Category") {
 			$links_container.find(".sidebar-link").each(function() {
 				$(this).removeClass("is-default-link").attr("data-is-default", "0");
 			});
+		}
+
+		// Handle Category links differently
+		if (values.link_type === "Category") { 
+			const category_id = `category-${frappe.router.slug(values.label)}-${Date.now()}`;
+			const category_html = `
+				<div class="sidebar-category sidebar-link is-draggable" data-label="${frappe.utils.escape_html(values.label)}" data-link-type="Category" data-category-id="${category_id}">
+					<div class="sidebar-category-header" data-toggle="${category_id}">
+						<div class="drag-handle">
+							<svg class="icon icon-xs"><use href="#icon-drag"></use></svg>
+						</div>
+						<svg class="icon icon-sm sidebar-category-icon">
+							<use href="#icon-${values.icon}"></use>
+						</svg>
+						<span class="sidebar-link-label">${frappe.utils.escape_html(values.label)}</span>
+						<svg class="icon icon-xs sidebar-category-toggle">
+							<use href="#es-line-down"></use>
+						</svg>
+					</div>
+				</div>
+			`;
+
+			const $category = $(category_html);
+			$links_container.append($category);
+
+			
+			return;
 		}
 
 		const link_to = values.link_type === "URL" ? values.url : values.link_to;

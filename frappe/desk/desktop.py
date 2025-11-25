@@ -895,26 +895,27 @@ def has_permission_for_workspace_link(link):
 @frappe.whitelist()
 def save_user_sidebar(workspace_name, links, hidden_links=None):
 	"""
-	Save user's sidebar customizations for a public workspace.
-	Validates permissions for all links before saving.
+	Save user's sidebar customizations.
+	This function allows saving "Category" type links, which bypass permission checks,
+	while validating permissions for all other link types.
 	"""
 	user = frappe.session.user
 	links = frappe.parse_json(links)
 	hidden_links = frappe.parse_json(hidden_links or "[]")
 
-	# Check workspace access first
+	# Check workspace access first (remains unchanged)
 	if not can_access_workspace(workspace_name):
 		frappe.throw(_("You don't have permission to customize this workspace"))
 
-	# Get workspace doc for validation
+	# Get workspace doc for validation (remains unchanged)
 	workspace_doc = frappe.get_doc("Workspace", workspace_name)
 
-	# For private workspaces, ensure user owns it
+	# For private workspaces, ensure user owns it (remains unchanged)
 	if not workspace_doc.public:
 		if workspace_doc.for_user != user:
 			frappe.throw(_("You can only customize private workspaces that you own"), frappe.PermissionError)
 
-	# Find existing or create new
+	# Find existing or create new (remains unchanged)
 	existing = frappe.db.get_value(
 		"Workspace User Sidebar",
 		{"user": user, "workspace": workspace_name},
@@ -928,15 +929,21 @@ def save_user_sidebar(workspace_name, links, hidden_links=None):
 		doc.user = user
 		doc.workspace = workspace_name
 
-	# Clear existing links
+	# Clear existing links to rebuild the list
 	doc.sidebar_links = []
 
-	# Add links with proper idx and permission validation
+	# Add links with proper idx and conditional permission validation
 	for idx, link in enumerate(links, start=1):
-		# Validate user has permission for this link
-		if not has_permission_for_link_dict(link):
-			frappe.throw(_(f"You don't have permission to add {link.get('label')} to sidebar"))
+		# --- CAREFUL MODIFICATION IS HERE ---
+		is_category = link.get("link_type") == "Category"
 
+		# A Category is a visual element and has no permissions to check.
+		# For all other types, we MUST validate the user has permission for the link target.
+		if not is_category and not has_permission_for_link_dict(link):
+			# If it's not a category AND the user lacks permission, block the save.
+			frappe.throw(_(f"You don't have permission to add the link '{link.get('label')}' to the sidebar."))
+
+		# If the check passes (either it's a category or a permitted link), append it.
 		doc.append("sidebar_links", {
 			"link_type": link.get("link_type"),
 			"link_to": link.get("link_to"),
@@ -952,10 +959,9 @@ def save_user_sidebar(workspace_name, links, hidden_links=None):
 		})
 
 	doc.hidden_default_links = frappe.as_json(hidden_links)
-	doc.save(ignore_permissions=True)  # We already validated permissions above
+	doc.save(ignore_permissions=True)  # We already validated permissions granularly above
 
 	return {"success": True, "message": _("Sidebar customizations saved")}
-
 
 @frappe.whitelist()
 def reset_user_sidebar(workspace_name):
