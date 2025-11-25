@@ -120,3 +120,53 @@ def has_permission_for_link_row(link):
 		# Log error but don't expose to user
 		frappe.log_error(f"Permission check failed for {link_type}: {link_to}", "Sidebar Permission Error")
 		return False
+
+
+@frappe.whitelist()
+def update_sidebar_links_order(workspace, links_order):
+	"""
+	Update the order of links in a workspace user sidebar.
+	No permission checks needed - users can only see their own private workspaces.
+	"""
+	links_order = frappe.parse_json(links_order)
+	user = frappe.session.user
+
+	# Get the user's sidebar for this workspace
+	sidebar_name = frappe.db.get_value(
+		"Workspace User Sidebar",
+		{"user": user, "workspace": workspace},
+		"name"
+	)
+
+	if not sidebar_name:
+		frappe.throw(_("Sidebar not found for this workspace"))
+
+	# Get the existing sidebar document
+	sidebar_doc = frappe.get_doc("Workspace User Sidebar", sidebar_name)
+
+	# Clear existing links
+	sidebar_doc.sidebar_links = []
+
+	# Rebuild links in the new order
+	for idx, link_data in enumerate(links_order):
+		sidebar_doc.append("sidebar_links", {
+			"link_type": link_data.get("link_type"),
+			"link_to": link_data.get("link_to"),
+			"label": link_data.get("label"),
+			"icon": link_data.get("icon"),
+			"is_custom": link_data.get("is_custom", 0),
+			"is_default": link_data.get("is_default", 0),
+			"idx": idx + 1,
+			"doc_view": link_data.get("doc_view"),
+			"kanban_board": link_data.get("kanban_board"),
+			"color": link_data.get("color"),
+			"stats_filter": link_data.get("stats_filter")
+		})
+
+	# Save the updated document
+	sidebar_doc.save(ignore_permissions=True)
+
+	return {
+		"success": True,
+		"message": _("Sidebar links order updated")
+	}

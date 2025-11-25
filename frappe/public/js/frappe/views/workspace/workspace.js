@@ -2708,10 +2708,10 @@ frappe.views.Workspace = class Workspace {
 		// Skip sortable setup for public workspaces (sidebar is not customizable)
 		if (page.public || !$linksContainer.length) return;
 
-		// Initialize Sortable.js
+		// Initialize Sortable.js - supports both sidebar-link and sidebar-category elements
 		new Sortable($linksContainer[0], {
 			handle: ".drag-handle",
-			draggable: ".sidebar-link.is-draggable",
+			draggable: ".sidebar-link.is-draggable, .sidebar-category.is-draggable",
 			animation: 150,
 			ghostClass: "sortable-ghost",
 			chosenClass: "sortable-chosen",
@@ -2724,76 +2724,93 @@ frappe.views.Workspace = class Workspace {
 		});
 	}
 
-	load_sidebar_order($window, page) {
-		const storage_key = `workspace_${frappe.router.slug(page.name)}_sidebar_order`;
-		const saved_order = localStorage.getItem(storage_key);
-
-		if (saved_order) {
-			try {
-				return JSON.parse(saved_order);
-			} catch (e) {
-				console.error("Failed to parse saved sidebar order:", e);
-				return null;
-			}
-		}
-
-		return null;
-	}
-
-	apply_sidebar_order($window, saved_order) {
-		if (!saved_order || !Array.isArray(saved_order) || saved_order.length === 0) {
+	save_sidebar_order($window, page) {
+		const sidebar_data = $window.data("sidebar-links");
+		if (!sidebar_data || !Array.isArray(sidebar_data)) {
 			return;
 		}
 
 		const $linksContainer = $window.find(".sidebar-links");
-		const $links = $linksContainer.find(".sidebar-link");
+		const new_order = [];
+		const idToLinkMap = {};
 
-		// Create a map of link elements by their ID
-		const linksMap = {};
-		$links.each(function() {
-			const link_id = $(this).data("link-id");
-			if (link_id) {
-				linksMap[link_id] = $(this);
+		// Create a map of current links for quick lookup
+		sidebar_data.forEach((link, index) => {
+			if (link.link_type === "Category") {
+				idToLinkMap[`category-${link.label}`] = { ...link, idx: index + 1 };
+			} else {
+				idToLinkMap[`${link.link_type}-${link.link_to}`] = { ...link, idx: index + 1 };
 			}
 		});
 
-		// Detach all links
-		$links.detach();
+		// Collect current order from DOM (both links and categories)
+		$linksContainer.find(".sidebar-link.is-draggable, .sidebar-category.is-draggable").each(function(index) {
+			const $elem = $(this);
+			let link_data;
 
-		// Append links in saved order
-		saved_order.forEach(link_id => {
-			if (linksMap[link_id]) {
-				$linksContainer.append(linksMap[link_id]);
-				delete linksMap[link_id];
+			if ($elem.hasClass("sidebar-category")) {
+				// It's a category
+				const label = $elem.find(".sidebar-category-label").text();
+				link_data = idToLinkMap[`category-${label}`];
+				if (!link_data) {
+					link_data = {
+						link_type: "Category",
+						label: label,
+						icon: $elem.find(".sidebar-category-icon").attr("data-icon") || "folder",
+						idx: index + 1
+					};
+				}
+			} else {
+				// It's a regular link
+				const link_type = $elem.data("link-type");
+				const link_to = $elem.data("link-to");
+				link_data = idToLinkMap[`${link_type}-${link_to}`];
+				if (!link_data) {
+					link_data = {
+						link_type: link_type,
+						link_to: link_to,
+						label: $elem.data("label"),
+						icon: $elem.data("icon"),
+						idx: index + 1,
+						is_custom: $elem.data("is-custom"),
+						is_default: $elem.data("is-default"),
+						doc_view: $elem.data("doc-view"),
+						kanban_board: $elem.data("kanban-board"),
+						color: $elem.data("color"),
+						stats_filter: $elem.data("stats-filter")
+					};
+				}
+			}
+
+			// Update idx to match new position
+			link_data.idx = index + 1;
+			new_order.push(link_data);
+		});
+
+		// Call backend to save the new order
+		frappe.call({
+			method: "frappe.desk.doctype.workspace_user_sidebar.workspace_user_sidebar.update_sidebar_links_order",
+			args: {
+				workspace: page.name,
+				links_order: new_order
+			},
+			callback: function(r) {
+				if (!r.exc) {
+					// Update the cached sidebar data
+					$window.data("sidebar-links", new_order);
+					frappe.show_alert({
+						message: __("Sidebar order saved"),
+						indicator: "green"
+					}, 2);
+				}
+			},
+			error: function() {
+				frappe.show_alert({
+					message: __("Failed to save sidebar order"),
+					indicator: "red"
+				}, 2);
 			}
 		});
-
-		// Append any remaining links that weren't in saved order (new links)
-		Object.keys(linksMap).forEach(link_id => {
-			$linksContainer.append(linksMap[link_id]);
-		});
-	}
-
-	save_sidebar_order($window, page) {
-		const storage_key = `workspace_${frappe.router.slug(page.name)}_sidebar_order`;
-		const order = [];
-
-		// Collect current order from DOM
-		$window.find(".sidebar-link").each(function() {
-			const link_id = $(this).data("link-id");
-			if (link_id) {
-				order.push(link_id);
-			}
-		});
-
-		// Save to localStorage
-		localStorage.setItem(storage_key, JSON.stringify(order));
-
-		// Show success notification
-		frappe.show_alert({
-			message: __("Sidebar order saved"),
-			indicator: "green"
-		}, 2);
 	}
 
 	// ======================================
