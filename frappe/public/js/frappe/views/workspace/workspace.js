@@ -1219,6 +1219,26 @@ frappe.views.Workspace = class Workspace {
 				animation: 150,
 				fallbackOnBody: true,
 				swapThreshold: 0.65,
+				onMove: function (evt) {
+					let from_container = $(evt.from);
+					let to_container = $(evt.to);
+					let desk_sidebar = $(".cx-ROOT-layout > .layout-side-section > .list-sidebar > .desk-sidebar");
+					let sections = desk_sidebar.find(".standard-sidebar-section");
+					let section_count = sections.length;
+					// Determine if from/to sections are public based on section count
+					// If only 1 section: it's public (no private section exists)
+					// If 2 sections: first is private, second is public
+					let from_section = from_container.closest(".standard-sidebar-section");
+					let to_section = to_container.closest(".standard-sidebar-section");
+
+					let from_is_public = section_count === 1 || from_section.is(sections.last());
+					let to_is_public = section_count === 1 || to_section.is(sections.last());
+
+					// Check if trying to move item between public and private sections
+					if (from_is_public !== to_is_public) {
+						return false;
+					}
+				},
 				onEnd: function (evt) {
 					let is_public = $(evt.item).attr("item-public") == "1";
 					me.prepare_sorted_sidebar(is_public);
