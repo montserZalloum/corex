@@ -1674,8 +1674,13 @@ body {
 #body > #page-Workspaces > .page-head {
 	display: none;
 }
-body > .main-section > .sticky-top .app-logo {
-	transition: .3s;
+body > .main-section > .sticky-top {
+	.app-logo {
+		transition: .3s;
+	}
+	#navbar-breadcrumbs {
+		display: none;
+	}
 }
 body > .main-section.show-header-above-all:has(.workspace-window) > .sticky-top {
 	.app-logo {
