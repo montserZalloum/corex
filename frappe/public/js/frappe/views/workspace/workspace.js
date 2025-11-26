@@ -9,23 +9,13 @@ frappe.workspace_deep_link = {
 	workspace_instance: null,
 
 	init() {
-		console.log("[Deep Link Global] Initializing global deep link handler");
-
-		// Wait for frappe app to be ready
-		// Use jQuery document ready and check for frappe.router
+		// Wait for frappe app/router to be ready
 		$(document).ready(() => {
-			console.log("[Deep Link Global] Document ready");
-
-			// Check if router is available
 			if (frappe.router) {
-				console.log("[Deep Link Global] Router available, setting up hooks");
 				this.setup_router_hooks();
 			} else {
-				// Wait for frappe.app to be ready
-				console.log("[Deep Link Global] Waiting for frappe.app");
 				const checkRouter = setInterval(() => {
 					if (frappe.router) {
-						console.log("[Deep Link Global] Router now available, setting up hooks");
 						clearInterval(checkRouter);
 						this.setup_router_hooks();
 					}
@@ -35,67 +25,47 @@ frappe.workspace_deep_link = {
 	},
 
 	setup_router_hooks() {
-		const self = this;
-
-		// Wrap router.render to intercept deep links
+		// Wrap router.render to intercept deep links ONE time
 		if (!frappe.router._deep_link_render_wrapped) {
-			console.log("[Deep Link Global] Wrapping router.render for deep link detection");
 			frappe.router._deep_link_render_wrapped = true;
 			const original_render = frappe.router.render;
 
 			frappe.router.render = function(...args) {
-				console.log("[Deep Link Global] Render called, route:", frappe.router.current_route);
-				console.log("[Deep Link Global] Render called, route:", frappe.router.current_route);
-
-				// Check if workspace instance exists and is ready
-				if (frappe.workspace && frappe.workspace.all_pages && frappe.workspace.all_pages.length > 0) {
-					// Workspace is loaded, use instance method
+				// 1. Check if workspace instance exists to handle the logic
+				if (frappe.workspace && frappe.workspace.handle_deep_link_on_route_change) {
+					// Delegate entirely to the instance.
+					// We pass the args to original_render inside the promise callback
+					// ONLY if the workspace logic decides to proceed.
 					frappe.workspace.handle_deep_link_on_route_change().then((handled) => {
-						console.log("[Deep Link Global] Handled by workspace instance:", handled);
+						// Always call original render to keep Frappe state in sync.
+						// If 'handled' was true, the workspace has already set up the 
+						// window routing hooks to redirect this render into a window.
 						original_render.apply(frappe.router, args);
 					});
 					return;
 				}
 
-				// Workspace not loaded yet - check if this is a deep link we should handle
+				// 2. Fallback: Workspace not loaded yet
 				const route = frappe.router.current_route;
 				if (route && route.length > 0) {
 					const first_part = route[0];
 					const doctype_views = ["Form", "List", "Report", "Tree", "Kanban", "Calendar", "Gantt", "Dashboard", "Image", "Inbox", "Map"];
 
 					if (doctype_views.includes(first_part)) {
-						const doctype = route[1];
-						console.log(`[Deep Link Global] Detected deep link on page load: ${first_part} for ${doctype}`);
-						console.log("[Deep Link Global] Workspace not loaded yet, will handle after workspace loads");
-
-						// Store the deep link to handle after workspace loads
-						frappe.workspace_deep_link.pending_deep_link = { route, doctype, view: first_part };
-
-						// DON'T render the page in main view - instead navigate to a workspace
-						// This will trigger workspace initialization, which will then handle the pending deep link
-						console.log("[Deep Link Global] Redirecting to a workspace to initialize system");
-
-						// Navigate to first available workspace
-						// This will create the workspace instance
+						frappe.workspace_deep_link.pending_deep_link = { route, doctype: route[1], view: first_part };
+						
+						// Redirect to Workspaces to force initialization
 						setTimeout(() => {
-							// Try to find a workspace to navigate to
 							if (frappe.workspaces && Object.keys(frappe.workspaces).length > 0) {
-								const first_workspace = Object.values(frappe.workspaces)[0];
-								console.log("[Deep Link Global] Navigating to workspace:", first_workspace.title);
-								frappe.set_route("Workspaces", first_workspace.title);
+								frappe.set_route("Workspaces", Object.values(frappe.workspaces)[0].title);
 							} else {
-								// Fallback: try "Home" or any common workspace
-								console.log("[Deep Link Global] Navigating to Home workspace");
 								frappe.set_route("Workspaces", "Home");
 							}
 						}, 100);
-
-						// Skip the default render
-						return;
+						return; 
 					}
 				}
 
-				// Call original render
 				return original_render.apply(frappe.router, args);
 			};
 		}
@@ -165,6 +135,10 @@ frappe.views.Workspace = class Workspace {
 
 		// Setup global deep link routing hook
 		this.setup_deep_link_routing();
+
+		// FIX: Initialize window routing immediately. 
+		// Do NOT wait for a window to open, otherwise the first deep link will race and fail.
+		this.setup_window_routing();
 	}
 
 	prepare_container() {
@@ -2185,11 +2159,21 @@ frappe.views.Workspace = class Workspace {
 
 	render_window_content(page, $window) {
 		const $content = $window.find(".window-content");
+		
+		// CRITICAL FIX: Save Deep Linked pages
+		// Check if any pages were routed into this window while we were waiting for data
+		const $preservedPages = $content.find(".window-page-view");
+		if ($preservedPages.length > 0) {
+			console.log(`[Workspace] Preserving ${$preservedPages.length} deep-linked pages before render`);
+			$preservedPages.detach(); // Remove from DOM but keep state/events intact
+		}
+
+		// Now safe to clear
 		$content.empty();
 
 		// Create sidebar + main content layout
 		const sidebar_html = `<div class="window-sidebar"></div>`;
-		// Generate a safe ID that doesn't contain special characters (@ from email, etc.)
+		// Generate a safe ID that doesn't contain special characters
 		const editor_id = `window-editor-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 		const main_html = `<div class="window-main">
 			<div id="${editor_id}" class="desk-page page-main-content" style="padding: 15px;"></div>
@@ -2206,8 +2190,21 @@ frappe.views.Workspace = class Workspace {
 		// Store editor reference for this window
 		$window.data("workspace-editor", this.editor);
 
-		// Setup routing interception only once
+		// CRITICAL FIX: Restore Deep Linked pages
+		if ($preservedPages.length > 0) {
+			$content.append($preservedPages);
+			
+			// Since we have an active page view, we must HIDE the workspace blocks we just rendered
+			$content.find(".window-main").hide();
+			
+			// Ensure the preserved page is visible
+			$preservedPages.show();
+			console.log(`[Workspace] Restored deep-linked pages`);
+		}
+
+		// Setup routing interception only once (if not done in constructor)
 		if (!frappe.views.Container.prototype._workspace_routing_setup) {
+			// fallback check
 			this.setup_window_routing();
 		}
 	}
@@ -4159,141 +4156,79 @@ frappe.views.Workspace = class Workspace {
 	// ========================
 
 	setup_deep_link_routing() {
-		// Hook into frappe.router to intercept deep links before pages render
-		const self = this;
+		// FIX: Removed jQuery and frappe.router.on listeners to prevent "Triple Binding".
+		// We rely solely on the Global Handler defined at the top of the file.
+		
+		// Fallback: If for some reason the global handler didn't run, wrap it here.
+		if (!frappe.router._deep_link_render_wrapped && !frappe.router._original_render) {
+			frappe.router._deep_link_render_wrapped = true;
+			const original_render = frappe.router.render;
+			const self = this;
 
-		console.log("[Deep Link] Setting up global routing hook");
-		console.log("[Deep Link] frappe.router exists:", !!frappe.router);
-
-		// Try different event binding methods
-		// Method 1: jQuery-style event
-		if (typeof $(frappe.router).on === 'function') {
-			console.log("[Deep Link] Using jQuery event binding");
-			$(frappe.router).on("change", async function() {
-				console.log("[Deep Link] Router change event fired (jQuery)");
-				await self.handle_deep_link_on_route_change();
-			});
-		}
-
-		// Method 2: Direct frappe.router.on if it exists
-		if (typeof frappe.router.on === 'function') {
-			console.log("[Deep Link] Using frappe.router.on event binding");
-			frappe.router.on("change", async function() {
-				console.log("[Deep Link] Router change event fired (frappe.router.on)");
-				await self.handle_deep_link_on_route_change();
-			});
-		}
-
-		// Method 3: Wrap the render method directly
-		if (!frappe.router._original_render) {
-			console.log("[Deep Link] Wrapping frappe.router.render method");
-			frappe.router._original_render = frappe.router.render;
 			frappe.router.render = function(...args) {
-				console.log("[Deep Link] Router render called, current_route:", frappe.router.current_route);
-
-				// Check if we should handle as deep link (async operation)
-				if (self.all_pages && self.all_pages.length > 0) {
-					// Capture context and arguments
-					const renderContext = this;
-
-					// Run async deep link handling
+				const renderContext = this;
+				
+				if (self.handle_deep_link_on_route_change) {
 					self.handle_deep_link_on_route_change().then((handled) => {
-						console.log("[Deep Link] Async handling complete, handled =", handled);
-
-						// Always call render - if handled, active window is set
-						// and existing window routing will redirect page to window
-						frappe.router._original_render.apply(renderContext, args);
+						original_render.apply(renderContext, args);
 					});
-
-					// Don't render immediately - wait for async handling
 					return;
 				}
-
-				// Call original render
-				return frappe.router._original_render.apply(this, args);
+				return original_render.apply(this, args);
 			};
 		}
-
-		console.log("[Deep Link] Global routing hook installed");
 	}
 
 	async handle_deep_link_on_route_change() {
-		// Prevent re-entrant calls while handling a deep link
+		// CRITICAL FIX: If already handling, return TRUE.
+		// Returning 'false' would make the Global Handler execute the default view,
+		// killing the window you are trying to open.
 		if (this._handling_deep_link) {
-			console.log("[Deep Link] Already handling a deep link, skipping");
-			return false;
+			return true; 
 		}
 
 		const route = frappe.router.current_route;
+		if (!route || route.length === 0) return false;
 
-		console.log("[Deep Link] Checking route:", route);
-
-		if (!route || route.length === 0) {
-			console.log("[Deep Link] No route");
-			return false;
-		}
-
-		// Check if this is a workspace route
+		// Filter out non-deep-link routes
 		const first_part = route[0];
-		if (first_part === "Workspaces") {
-			console.log("[Deep Link] This is a workspace route, skipping");
-			return false;
-		}
+		if (first_part === "Workspaces") return false;
 
-		// Check if this is a doctype-related route (Form, List, Report, Tree, etc.)
 		const doctype_views = ["Form", "List", "Report", "Tree", "Kanban", "Calendar", "Gantt", "Dashboard", "Image", "Inbox", "Map"];
-		if (!doctype_views.includes(first_part)) {
-			console.log("[Deep Link] Not a doctype view, skipping");
-			return false;
-		}
+		if (!doctype_views.includes(first_part)) return false;
 
-		// Extract the doctype from the route
 		const doctype = route[1];
-		if (!doctype) {
-			console.log("[Deep Link] No doctype in route");
-			return false;
-		}
+		if (!doctype) return false;
 
-		// Check if we already have a workspace window open for this
+		// If a workspace window is already active and visible, return true.
+		// This tells the system "We are handling this" so the Container hooks can
+		// redirect the render into the existing window.
 		if (this.active_workspace_window && this.active_workspace_window.is(":visible")) {
-			console.log("[Deep Link] Already have active workspace window, letting page render in window");
-			// Return false so page renders, but existing window routing will catch it
-			return false;
+			return true;
 		}
 
-		console.log(`[Deep Link] Detected deep link to ${first_part} view for doctype: ${doctype}`);
-
-		// Set flag to prevent re-entrant calls
 		this._handling_deep_link = true;
 
 		try {
-			// Find which workspace contains this doctype
+			// 1. Find the workspace
 			let workspace = await this.find_workspace_for_doctype(doctype);
 
 			if (!workspace) {
-				console.log(`[Deep Link] No specific workspace found for doctype: ${doctype}`);
-				console.log(`[Deep Link] Using fallback workspace strategy`);
-
-				// FALLBACK STRATEGY: Use a default workspace
 				workspace = this.get_fallback_workspace();
-
-				if (!workspace) {
-					console.log(`[Deep Link] ERROR: No fallback workspace available, allowing default behavior`);
-					return false;
-				}
-
-				console.log(`[Deep Link] Using fallback workspace: ${workspace.name}`);
-			} else {
-				console.log(`[Deep Link] Found workspace "${workspace.name}" for doctype: ${doctype}`);
+				// If strictly no workspace found, return false to let Frappe default view handle it
+				if (!workspace) return false;
 			}
 
-			// Open the workspace window and navigate to the deep link
+			// 2. Open the window
+			// This sets 'active_workspace_window', which triggers the logic in setup_window_routing
 			await this.open_workspace_for_deep_link(workspace, route);
-
-			// Return true to indicate we handled this deep link
-			return true;
+			
+			return true; // Handled successfully
+		} catch (e) {
+			console.error("[Deep Link] Error:", e);
+			return false; // Error occurred, fallback to default behavior
 		} finally {
-			// Clear flag after handling
+			// Always reset the lock
 			this._handling_deep_link = false;
 		}
 	}
@@ -4408,32 +4343,25 @@ frappe.views.Workspace = class Workspace {
 	}
 
 	async open_workspace_for_deep_link(workspace, target_route) {
-		// Open the workspace window
 		console.log(`[Deep Link] Opening workspace window: ${workspace.name}`);
 
-		// Check if window is already open
+		// 1. Check if window is already open
+		// We use data attributes to find exact match
 		const existing_window = $(`.workspace-window[data-page-name="${workspace.name}"]`);
 		if (existing_window.length > 0) {
-			console.log(`[Deep Link] Workspace window already open, using existing window`);
+			console.log(`[Deep Link] Workspace window already open, reusing`);
 			this.active_workspace_window = existing_window;
-			console.log(`[Deep Link] Set active window, existing routing will handle page display`);
 			return;
 		}
 		
-		// Open new workspace window
-		this.open_workspace_window({ name: workspace.name, public: workspace.public });
-
-		// Set the newly created window as active immediately
-		// Use a short timeout to ensure DOM is updated
-		await new Promise(resolve => setTimeout(resolve, 100));
-
-		const $window = $(`.workspace-window[data-page-name="${workspace.name}"]`);
-		if ($window.length > 0) {
-			this.active_workspace_window = $window;
-			console.log(`[Deep Link] Set active window, existing routing will handle page display`);
-		} else {
-			console.log(`[Deep Link] WARNING: Window not found after creation`);
-		}
+		// 2. Open new workspace window
+		// FIX: Capture the return value directly. No need to query DOM or wait.
+		const $window = this.open_workspace_window({ name: workspace.name, public: workspace.public });
+		
+		// 3. Set active immediately
+		this.active_workspace_window = $window;
+		
+		console.log(`[Deep Link] Window opened and set active immediately`);
 	}
 
 	async handle_pending_deep_link(pending) {

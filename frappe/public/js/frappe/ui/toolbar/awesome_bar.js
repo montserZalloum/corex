@@ -100,28 +100,31 @@ frappe.search.AwesomeBar = class AwesomeBar {
 		});
 
 		$input.on("awesomplete-select", async function (e) {
-			// CRITICAL: Prevent ALL default behaviors FIRST to avoid race condition
+			// 1. Stop all default browser and library behaviors immediately
 			e.preventDefault();
 			e.stopPropagation();
 
 			var o = e.originalEvent;
-
-			// Also prevent the underlying click event if it exists
 			if (o && o.originalEvent) {
 				o.originalEvent.preventDefault();
 				o.originalEvent.stopPropagation();
 			}
 
+			// 2. Capture the data we need
 			var value = o.text.value;
 			var item = awesomplete.get_item(value);
 
-			console.log("[Awesomebar] Item selected:", item);
-			console.log("[Awesomebar] Item route:", item.route);
+			// 3. Clear input IMMEDIATELY to prevent double-submission race conditions
+			// Doing this before the await ensures the UI feels responsive and locks out a second Enter press.
+			$input.val("");
+			$input.trigger("blur");
 
+			// 4. Apply Route Options (Standard Frappe behavior)
 			if (item.route_options) {
 				frappe.route_options = item.route_options;
 			}
 
+			// 5. Execute Action
 			if (item.onclick) {
 				item.onclick(item.match);
 			} else {
@@ -129,20 +132,21 @@ frappe.search.AwesomeBar = class AwesomeBar {
 				if (event.ctrlKey || event.metaKey) {
 					frappe.open_in_new_tab = true;
 				}
-				if (item.route[0].startsWith("https://")) {
+				
+				if (item.route && item.route[0] && item.route[0].startsWith("https://")) {
 					window.open(item.route[0], "_blank");
 					return;
 				}
+
 				// WORKSPACE WINDOW INTEGRATION
-				// If workspace system is available, try to open result in a workspace window
+				// Call the fixed handle_awesomebar_selection method
 				const handled = await me.handle_awesomebar_selection(item.route);
+				
+				// If workspace system didn't handle it, use default routing
 				if (!handled) {
-					// Fallback to default routing if not handled by workspace system
 					frappe.set_route(item.route);
 				}
 			}
-			$input.val("");
-			$input.trigger("blur");
 		});
 
 		$input.on("awesomplete-selectcomplete", function (e) {
@@ -391,167 +395,89 @@ frappe.search.AwesomeBar = class AwesomeBar {
 	}
 
 	async handle_awesomebar_selection(route) {
-		// Handle awesomebar selection to open in workspace windows
-		// This integrates with the OS-like desktop experience
-		console.log("[Awesomebar] Handling selection (raw):", route, typeof route);
-		// Check if workspace system is available
-		if (!frappe.workspace) {
-			console.log("[Awesomebar] Workspace system not available, using default routing");
-			return false;
-		}
+		// 1. Safety Check
+		if (!frappe.workspace) return false;
 
-		// Normalize route to array format
+		// 2. Normalize Route (Handle string or array)
 		let route_array;
 		if (typeof route === "string") {
-			// Split string route like "List/User" into ["List", "User"]
 			route_array = route.split("/").filter(part => part.length > 0);
 		} else if (Array.isArray(route)) {
-			route_array = [...route]; // Clone to avoid modifying original
+			route_array = [...route];
 		} else {
 			route_array = [route];
 		}
 
-		// Clean up malformed routes (e.g., ["List", "User", "List"] -> ["List", "User"])
-		// Remove duplicate trailing "List" if it exists
-		if (route_array.length >= 3 &&
-		    route_array[0] === "List" &&
-		    route_array[route_array.length - 1] === "List" &&
-		    route_array[2] !== "Report" &&
-		    route_array[2] !== "Inbox") {
-			console.log("[Awesomebar] Detected malformed route with duplicate 'List', cleaning up");
-			route_array = route_array.slice(0, 2); // Keep only ["List", "DocType"]
+		// 3. Clean up duplicate "List" (e.g., ["List", "User", "List"])
+		if (route_array.length >= 3 && route_array[0] === "List" && route_array[route_array.length - 1] === "List") {
+			route_array = route_array.slice(0, 2);
 		}
 
-		console.log("[Awesomebar] Normalized route:", route_array);
+		if (!route_array || route_array.length === 0) return false;
 
-		if (!route_array || route_array.length === 0) {
-			console.log("[Awesomebar] Empty route");
-			return false;
-		}
-
-		// Check if this is a workspace route itself
+		// 4. Handle Direct Workspace Routes (e.g., "Workspaces/Accounting")
 		const first_part = route_array[0];
 		if (first_part === "Workspaces" || route_array.includes("workspaces")) {
-			console.log("[Awesomebar] This is a workspace route, handling it by opening a window.");
-			
-			// The workspace title is the second part of the route, e.g., "Users" from ["Workspaces", "Users"]
 			const workspace_title = route_array[1];
-			if (!workspace_title) return false; // Not a valid workspace route
-		
-			// Find the full workspace object from the master list
+			if (!workspace_title) return false;
 			const workspace_page = frappe.workspace.all_pages.find(p => p.title === workspace_title);
-		
 			if (workspace_page) {
-				// We found it! Open it in a new window.
 				frappe.workspace.open_workspace_window(workspace_page);
-				
-				// IMPORTANT: We handled the click, so return true to stop the default routing.
-				return true; 
+				return true; // Handled
 			}
-		
-			// If for some reason we can't find it, fallback to default.
 			return false;
 		}
 
-		// Check if this is a doctype-related route
-		const doctype_views = [
-			"Form", "List", "Report", "Tree", "Kanban",
-			"Calendar", "Gantt", "Dashboard", "Image",
-			"Inbox", "Map"
-		];
-
+		// 5. Handle DocType Routes
+		const doctype_views = ["Form", "List", "Report", "Tree", "Kanban", "Calendar", "Gantt", "Dashboard", "Image", "Inbox", "Map"];
 		let doctype = null;
-		let is_doctype_route = false;
 
-		// Extract doctype from route
 		if (doctype_views.includes(first_part)) {
-			// Routes like ["List", "User"] or ["Form", "User", "Administrator"]
 			doctype = route_array[1];
-			is_doctype_route = true;
 		} else if (route_array.length === 1) {
-			// Check if this is a doctype list route (e.g., ["User"])
-			// We'll try to find a workspace for it anyway
-			doctype = first_part;
-			is_doctype_route = true;
+			doctype = first_part; // e.g., ["User"]
 		}
 
-		if (!is_doctype_route || !doctype) {
-			console.log("[Awesomebar] Not a doctype route, using default routing");
-			return false;
-		}
+		if (!doctype) return false; // Not a doctype route, let default Frappe handle it
 
-		console.log(`[Awesomebar] Doctype route detected: ${first_part} for ${doctype}`);
+		// 6. Execute Logic
 		try {
-			// Find the appropriate workspace for this doctype
+			// Find appropriate workspace
 			let workspace = await frappe.workspace.find_workspace_for_doctype(doctype);
-
 			if (!workspace) {
-				console.log(`[Awesomebar] No specific workspace found for doctype: ${doctype}`);
-				console.log(`[Awesomebar] Using fallback workspace strategy`);
-
-				// Try fallback workspace
 				workspace = frappe.workspace.get_fallback_workspace();
-
-				if (!workspace) {
-					console.log(`[Awesomebar] No fallback workspace available, using default routing`);
-					return false;
-				}
-
-				console.log(`[Awesomebar] Using fallback workspace: ${workspace.name}`);
-			} else {
-				console.log(`[Awesomebar] Found workspace "${workspace.name}" for doctype: ${doctype}`);
+				if (!workspace) return false; // Fallback to default routing
 			}
 
-			// Open the workspace window and set it as active
+			// Open the Workspace Window (Async)
+			// This sets 'active_workspace_window' in workspace.js
 			await frappe.workspace.open_workspace_for_deep_link(workspace, route_array);
 
-			// Check if we're already on the target route
+			// Check if we are already on this URL
 			const current_route = frappe.get_route();
-			const routes_match = current_route.length === route_array.length &&
-			                     current_route.every((part, i) => part === route_array[i]);
+			const routes_match = current_route.length === route_array.length && 
+								 current_route.every((part, i) => part === route_array[i]);
 
-			if (routes_match) {
-				// Already on this route - need to manually show page in window
-				// because frappe.set_route() will be a no-op
-				console.log(`[Awesomebar] Already on target route, manually showing page in window`);
-
-				// Get the current page label
-				const page_label = frappe.get_route_str();
-
-				// Force display in window
-				setTimeout(() => {
-					if (frappe.workspace.active_workspace_window) {
-						frappe.workspace.show_page_in_window(
-							frappe.workspace.active_workspace_window,
-							page_label
-						);
-					}
-				}, 100);
-
-				return true; // We handled it, skip default routing
-			}
-
-			// Different route - we need to navigate to the route
-			// FIXED: Call frappe.set_route() here after window is opened,
-			// instead of returning false and letting awesome_bar.js call it.
-			// This ensures the window routing system is set up before the route changes.
-			console.log(`[Awesomebar] Workspace window opened, navigating to route:`, route_array);
-
-			// Mark the active window so navigate_to_default_link doesn't override this selection
-			if (frappe.workspace.active_workspace_window) {
-				frappe.workspace.active_workspace_window.data("awesomebar-selection-in-progress", true);
-				console.log(`[Awesomebar] Marked window to skip default link navigation`);
-			}
-
-			// Use a small timeout to ensure DOM is fully updated
-			setTimeout(() => {
+			if (!routes_match) {
+				// We are NOT on the route yet. 
+				// Since we just opened the window, the workspace global handler is ready.
+				// We call set_route immediately. No setTimeout needed.
 				frappe.set_route(route_array);
-			}, 50);
+			} else {
+				// We ARE on the route, but maybe the UI isn't showing the window.
+				// Force the window to show this page.
+				if (frappe.workspace.active_workspace_window) {
+					frappe.workspace.show_page_in_window(
+						frappe.workspace.active_workspace_window,
+						frappe.get_route_str()
+					);
+				}
+			}
 
-			return true; // We handled it, we're calling set_route ourselves
+			return true; // IMPORTANT: Return true so awesomplete listener STOPS and doesn't run default logic.
 		} catch (error) {
-			console.error("[Awesomebar] Error handling workspace selection:", error);
-			return false; // Fallback to default routing
+			console.error("[Awesomebar] Error:", error);
+			return false; // Return false to fall back to default Frappe routing
 		}
 	}
 };
