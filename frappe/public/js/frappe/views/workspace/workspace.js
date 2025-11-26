@@ -49,7 +49,7 @@ frappe.workspace_deep_link = {
 				const route = frappe.router.current_route;
 				if (route && route.length > 0) {
 					const first_part = route[0];
-					const doctype_views = ["Form", "List", "Report", "Tree", "Kanban", "Calendar", "Gantt", "Dashboard", "Image", "Inbox", "Map"];
+					const doctype_views = ["Form", "List", "Report", "Tree", "Kanban", "Calendar", "Gantt", "Dashboard", "Image", "Inbox", "Map","query-report", "dashboard-view"];
 
 					if (doctype_views.includes(first_part)) {
 						frappe.workspace_deep_link.pending_deep_link = { route, doctype: route[1], view: first_part };
@@ -4209,7 +4209,7 @@ frappe.views.Workspace = class Workspace {
 		const first_part = route[0];
 		if (first_part === "Workspaces") return false;
 
-		const doctype_views = ["Form", "List", "Report", "Tree", "Kanban", "Calendar", "Gantt", "Dashboard", "Image", "Inbox", "Map"];
+		const doctype_views = ["Form", "List", "Report", "Tree", "Kanban", "Calendar", "Gantt", "Dashboard", "Image", "Inbox", "Map", "query-report", "dashboard-view"];
 		if (!doctype_views.includes(first_part)) return false;
 
 		const doctype = route[1];
@@ -4382,51 +4382,44 @@ frappe.views.Workspace = class Workspace {
 	async handle_pending_deep_link(pending) {
 		console.log(`[Deep Link] Handling pending deep link: ${pending.view} for ${pending.doctype}`);
 
-		// Find which workspace contains this doctype
-		let workspace = await this.find_workspace_for_doctype(pending.doctype);
+		// 1. Define Views
+		// These views map to real DocTypes 
+		const doc_views = ["Form", "List", "Report", "Tree", "Kanban", "Calendar", "Gantt", "Dashboard", "Image", "Inbox", "Map"];
+		
+		let workspace = null;
 
+		// 2. CRITICAL FIX: Only lookup DocType if the view expects a DocType.
+		// For "query-report" or "dashboard-view", pending.doctype is actually a Report Name, 
+		// so asking the server to look it up as a DocType will fail.
+		if (doc_views.includes(pending.view)) {
+			workspace = await this.find_workspace_for_doctype(pending.doctype);
+		}
+
+		// 3. Fallback Strategy
 		if (!workspace) {
-			console.log(`[Deep Link] No specific workspace found for doctype: ${pending.doctype}`);
-			console.log(`[Deep Link] Using fallback workspace strategy`);
-
-			// FALLBACK STRATEGY: Use a default workspace
+			console.log(`[Deep Link] No specific workspace found (or lookup skipped)`);
 			workspace = this.get_fallback_workspace();
 
 			if (!workspace) {
-				console.log(`[Deep Link] ERROR: No fallback workspace available, allowing normal behavior`);
-				// Re-route to the original deep link to show in main view
+				console.log(`[Deep Link] ERROR: No fallback workspace available`);
+				// Give up and route normally in main view
 				setTimeout(() => {
 					frappe.set_route(pending.route);
-
-					// Clear the deep link processed flag after navigation completes
-					setTimeout(() => {
-						this.deep_link_processed_on_init = false;
-						console.log("[Deep Link] Cleared deep_link_processed_on_init flag");
-					}, 500);
+					// Clear flag
+					setTimeout(() => { this.deep_link_processed_on_init = false; }, 500);
 				}, 100);
 				return;
 			}
-
 			console.log(`[Deep Link] Using fallback workspace: ${workspace.name}`);
-		} else {
-			console.log(`[Deep Link] Found workspace "${workspace.name}" for doctype: ${pending.doctype}`);
 		}
 
-		// We're already on a workspace page (redirected there by global handler)
-		// Just open the workspace window and navigate to the deep link
+		// 4. Open Window (Deep Link Mode = true)
 		await this.open_workspace_for_deep_link(workspace, pending.route);
 
-		// Now re-trigger the original route to show in window
-		console.log("[Deep Link] Re-triggering original route in window:", pending.route);
+		// 5. Trigger Navigation inside the window
 		setTimeout(() => {
 			frappe.set_route(pending.route);
-
-			// Clear the deep link processed flag after navigation completes
-			// This allows default link navigation to work on subsequent workspace loads
-			setTimeout(() => {
-				this.deep_link_processed_on_init = false;
-				console.log("[Deep Link] Cleared deep_link_processed_on_init flag");
-			}, 500);
+			setTimeout(() => { this.deep_link_processed_on_init = false; }, 500);
 		}, 200);
 	}
 

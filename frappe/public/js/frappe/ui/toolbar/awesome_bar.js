@@ -415,35 +415,56 @@ frappe.search.AwesomeBar = class AwesomeBar {
 
 		if (!route_array || route_array.length === 0) return false;
 
-		// 4. Handle Direct Workspace Routes (e.g., "Workspaces/Accounting")
 		const first_part = route_array[0];
+
+		// 4. Handle Direct Workspace Routes (e.g., "Workspaces/Accounting")
 		if (first_part === "Workspaces" || route_array.includes("workspaces")) {
 			const workspace_title = route_array[1];
 			if (!workspace_title) return false;
+			
 			const workspace_page = frappe.workspace.all_pages.find(p => p.title === workspace_title);
 			if (workspace_page) {
-				frappe.workspace.open_workspace_window(workspace_page);
-				return true; // Handled
+				// Pass true to indicate deep link (prevents auto-navigating to sidebar defaults like 'Leads')
+				frappe.workspace.open_workspace_window(workspace_page, true);
+				return true; 
 			}
 			return false;
 		}
 
-		// 5. Handle DocType Routes
-		const doctype_views = ["Form", "List", "Report", "Tree", "Kanban", "Calendar", "Gantt", "Dashboard", "Image", "Inbox", "Map"];
-		let doctype = null;
+		// 5. Categorize Views
+		// doc_views: Views where the second part is definitely a DocType (Safe to lookup)
+		const doc_views = ["Form", "List", "Report", "Tree", "Kanban", "Calendar", "Gantt", "Dashboard", "Image", "Inbox", "Map"];
+		
+		// other_views: Views where the second part is NOT a DocType (Report Name, Dashboard Name, etc.)
+		const other_views = ["query-report", "dashboard-view"];
+		
+		let identifier = null;
+		let should_lookup_doctype = false;
 
-		if (doctype_views.includes(first_part)) {
-			doctype = route_array[1];
+		if (doc_views.includes(first_part)) {
+			identifier = route_array[1];
+			should_lookup_doctype = true; 
+		} else if (other_views.includes(first_part)) {
+			identifier = route_array[1];
+			should_lookup_doctype = false; // It's a report/dashboard name, DO NOT look up as DocType
 		} else if (route_array.length === 1) {
-			doctype = first_part; // e.g., ["User"]
+			// e.g. ["User"]
+			identifier = first_part;
+			should_lookup_doctype = true;
 		}
 
-		if (!doctype) return false; // Not a doctype route, let default Frappe handle it
+		if (!identifier) return false; // Not a recognized route format, let default Frappe handle it
 
 		// 6. Execute Logic
 		try {
-			// Find appropriate workspace
-			let workspace = await frappe.workspace.find_workspace_for_doctype(doctype);
+			let workspace = null;
+			
+			// Only ask server to find workspace by DocType if we are sure it IS a DocType
+			if (should_lookup_doctype) {
+				workspace = await frappe.workspace.find_workspace_for_doctype(identifier);
+			}
+
+			// Fallback if not found via DocType, or if we skipped lookup (for reports/dashboards)
 			if (!workspace) {
 				workspace = frappe.workspace.get_fallback_workspace();
 				if (!workspace) return false; // Fallback to default routing
@@ -452,6 +473,11 @@ frappe.search.AwesomeBar = class AwesomeBar {
 			// Open the Workspace Window (Async)
 			// This sets 'active_workspace_window' in workspace.js
 			await frappe.workspace.open_workspace_for_deep_link(workspace, route_array);
+
+			// Mark window to prevent "default link" auto-navigation overwriting this
+			if (frappe.workspace.active_workspace_window) {
+				frappe.workspace.active_workspace_window.data("awesomebar-selection-in-progress", true);
+			}
 
 			// Check if we are already on this URL
 			const current_route = frappe.get_route();
