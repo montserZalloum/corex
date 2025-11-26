@@ -1674,3 +1674,14 @@ body {
 #body > #page-Workspaces > .page-head {
 	display: none;
 }
+body > .main-section > .sticky-top .app-logo {
+	transition: .3s;
+}
+body > .main-section.show-header-above-all:has(.workspace-window) > .sticky-top {
+	.app-logo {
+		opacity: 0;
+	}
+}
+body > .main-section.show-header-above-all > .sticky-top {
+	z-index: 200000;
+}

@@ -93,10 +93,12 @@ frappe.search.AwesomeBar = class AwesomeBar {
 
 		$input.on("awesomplete-open", function (e) {
 			me.autocomplete_open = e.target;
+			$("body > .main-section").addClass('show-header-above-all'); 
 		});
 
 		$input.on("awesomplete-close", function (e) {
 			me.autocomplete_open = false;
+			$("body > .main-section").removeClass('show-header-above-all');
 		});
 
 		$input.on("awesomplete-select", async function (e) {
