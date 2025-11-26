@@ -1721,29 +1721,59 @@ frappe.views.Workspace = class Workspace {
 		});
 
 		$window.find(".btn-window-maximize").on("click", () => {
-			const isMaximized = $window.hasClass("maximized");
+			const isMaximized = $window.data("is-maximized");
 
 			if (isMaximized) {
 				// Restore to previous size
 				const savedPos = $window.data("saved-position");
 				if (savedPos) {
 					$window.css({
+						position: "fixed",
 						left: savedPos.left + "px",
 						top: savedPos.top + "px",
 						width: savedPos.width + "px",
-						height: savedPos.height + "px"
+						height: savedPos.height + "px",
+						"border-radius": "18px",
+						"z-index": savedPos.zIndex,
+						border: "1px solid rgba(255, 255, 255, 0.45)",
+						"backdrop-filter": "blur(30px) saturate(180%)",
+						"-webkit-backdrop-filter": "blur(30px) saturate(180%)",
+						animation: "slideInMac 0.5s cubic-bezier(0.16, 1, 0.3, 1)",
+						transition: "all 0.3s cubic-bezier(0.16, 1, 0.3, 1)"
 					});
 				}
-				$window.removeClass("maximized");
+				$window.data("is-maximized", false);
 			} else {
 				// Save current position and maximize
+				const currentZ = parseInt($window.css("z-index")) || 1000;
 				$window.data("saved-position", {
 					left: $window.position().left,
 					top: $window.position().top,
 					width: $window.width(),
-					height: $window.height()
+					height: $window.height(),
+					zIndex: currentZ
 				});
-				$window.addClass("maximized");
+
+				// Apply maximize styles directly without adding class
+				$window.css({
+					position: "fixed",
+					left: "0",
+					top: "0",
+					width: "100%",
+					height: "100%",
+					"border-radius": "0",
+					"z-index": "2000",
+					animation: "none",
+					"backdrop-filter": "none",
+					"-webkit-backdrop-filter": "none",
+					border: "none"
+				});
+
+				$window.data("is-maximized", true);
+
+				// Bring window to front
+				this.window_z_index += 1;
+				$window.css("z-index", this.window_z_index);
 			}
 		});
 
