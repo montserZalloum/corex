@@ -2000,10 +2000,12 @@ frappe.views.Workspace = class Workspace {
 	make_window_draggable($window) {
 		const dragState = {
 			isDown: false,
-			offset: [0, 0]
+			offset: [0, 0],
+			snapRegion: null // Track which snap region the cursor is in
 		};
 		const $titlebar = $window.find(".window-titlebar");
 		const self = this;
+		const SNAP_THRESHOLD = 60; // pixels from edge to trigger snap region
 
 		$titlebar.on("mousedown", (e) => {
 			// Don't drag if clicking on a button
@@ -2020,6 +2022,9 @@ frappe.views.Workspace = class Workspace {
 			// Bring to front by incrementing z-index
 			self.window_z_index += 1;
 			$window.css("z-index", self.window_z_index);
+
+			// Show snap guides when starting drag
+			self.show_snap_guides();
 
 			// Prevent any selection or default behavior during drag
 			e.preventDefault();
@@ -2038,14 +2043,26 @@ frappe.views.Workspace = class Workspace {
 					left: Math.max(-100, Math.min(newLeft, maxLeft)) + "px",
 					top: Math.max(0, Math.min(newTop, maxTop)) + "px"
 				});
+
+				// Check for snap regions during drag and update dragState
+				dragState.snapRegion = self.check_snap_region(e.clientX);
 			}
 		};
 
-		const windowUpHandler = () => {
+		const windowUpHandler = (e) => {
 			if (dragState.isDown) {
 				dragState.isDown = false;
 				$window.removeClass("dragging");
 				$window.data("is-dragging", false); // Clear drag flag
+
+				// Check if dropped in a snap region
+				if (dragState.snapRegion) {
+					self.snap_window($window, dragState.snapRegion);
+					dragState.snapRegion = null;
+				}
+
+				// Hide snap guides after drop
+				self.hide_snap_guides();
 			}
 		};
 
@@ -4458,6 +4475,26 @@ frappe.views.Workspace = class Workspace {
 			this.dock_element.appendTo("body");
 		}
 		this.minimized_windows = [];
+
+		// Initialize snap guides for Windows 11 snap assist feature
+		this.initialize_snap_guides();
+	}
+
+	initialize_snap_guides() {
+		// Create snap guides container if it doesn't exist
+		if (!this.snap_guides_container) {
+			this.snap_guides_container = $(`
+				<div class="snap-guides-container">
+					<div class="snap-guide snap-guide-left">
+						<div class="snap-guide-label">Snap Left</div>
+					</div>
+					<div class="snap-guide snap-guide-right">
+						<div class="snap-guide-label">Snap Right</div>
+					</div>
+				</div>
+			`);
+			this.snap_guides_container.appendTo("body");
+		}
 	}
 
 	minimize_window_to_dock($window) {
@@ -4596,6 +4633,112 @@ frappe.views.Workspace = class Workspace {
 				this.dock_element.addClass("visible");
 			}, 10);
 		}
+	}
+
+	// ============================================================================
+	// Windows 11 Snap Assist Methods
+	// ============================================================================
+
+	show_snap_guides() {
+		if (this.snap_guides_container) {
+			this.snap_guides_container.addClass("visible");
+		}
+	}
+
+	hide_snap_guides() {
+		if (this.snap_guides_container) {
+			this.snap_guides_container.removeClass("visible");
+			// Remove active class from all snap guides
+			this.snap_guides_container.find(".snap-guide").removeClass("active");
+		}
+	}
+
+	check_snap_region(clientX) {
+		if (!this.snap_guides_container) return null;
+
+		const $leftGuide = this.snap_guides_container.find(".snap-guide-left");
+		const $rightGuide = this.snap_guides_container.find(".snap-guide-right");
+		const viewportWidth = $(window).width();
+		const SNAP_THRESHOLD = 60; // pixels from edge to trigger snap
+
+		let snapRegion = null;
+
+		// Check if cursor is in left half (snap left zone)
+		if (clientX < viewportWidth / 2 && clientX < SNAP_THRESHOLD * 2) {
+			$leftGuide.addClass("active");
+			$rightGuide.removeClass("active");
+			snapRegion = "left";
+		}
+		// Check if cursor is in right half (snap right zone)
+		else if (clientX > viewportWidth / 2 && clientX > viewportWidth - SNAP_THRESHOLD * 2) {
+			$rightGuide.addClass("active");
+			$leftGuide.removeClass("active");
+			snapRegion = "right";
+		}
+		// Cursor is in middle, deactivate both
+		else {
+			$leftGuide.removeClass("active");
+			$rightGuide.removeClass("active");
+			snapRegion = null;
+		}
+
+		return snapRegion;
+	}
+
+	snap_window($window, region) {
+		if (!region) return;
+
+		const viewportWidth = $(window).width();
+		const viewportHeight = $(window).height();
+		const snapWidth = viewportWidth / 2;
+		const snapHeight = viewportHeight;
+
+		// Get current position and size to preserve maximum/restore behavior
+		const currentState = {
+			left: $window.css("left"),
+			top: $window.css("top"),
+			width: $window.css("width"),
+			height: $window.css("height")
+		};
+
+		// Save current state for unsnapping later
+		if (!$window.data("snap-history")) {
+			$window.data("snap-history", []);
+		}
+		$window.data("snap-history").push(currentState);
+
+		// Apply snap layout based on region
+		const snapConfig = region === "left" ? {
+			left: "0px",
+			top: "0px",
+			width: snapWidth + "px",
+			height: snapHeight + "px"
+		} : {
+			left: snapWidth + "px",
+			top: "0px",
+			width: snapWidth + "px",
+			height: snapHeight + "px"
+		};
+
+		// Animate to snap position
+		$window.css(snapConfig);
+		$window.data("snap-region", region);
+		$window.addClass("snapped");
+
+		// Update z-index to bring to front
+		this.window_z_index += 1;
+		$window.css("z-index", this.window_z_index);
+	}
+
+	unsnap_window($window) {
+		const snapHistory = $window.data("snap-history");
+		if (!snapHistory || snapHistory.length === 0) return;
+
+		// Restore to previous state
+		const previousState = snapHistory.pop();
+		$window.css(previousState);
+		$window.removeData("snap-region");
+		$window.removeClass("snapped");
 	}
 
 };

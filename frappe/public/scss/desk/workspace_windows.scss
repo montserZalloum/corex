@@ -105,6 +105,12 @@ $shadow-ultra: 0 30px 80px rgba(0, 0, 0, 0.2);
 		opacity: 0.5;
 	}
 
+	&.snapped {
+		transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+		border-radius: 0;
+		box-shadow: $shadow-medium, inset 0 1px 0 rgba(255, 255, 255, 0.6);
+	}
+
 	&.resizing {
 		transition: none;
 		box-shadow: $shadow-ultra, inset 0 1px 0 rgba(255, 255, 255, 0.6);
@@ -1494,3 +1500,87 @@ $shadow-ultra: 0 30px 80px rgba(0, 0, 0, 0.2);
 // #freeze {
 // 	display: none;
 // }
+
+// ============================================================================
+// Windows 11 Snap Assist Feature
+// ============================================================================
+
+// Snap guides overlay container
+.snap-guides-container {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	z-index: 1999;
+	pointer-events: none;
+	display: none;
+
+	&.visible {
+		display: block;
+	}
+}
+
+// Individual snap guide tiles
+.snap-guide {
+	position: absolute;
+	background: rgb(0 0 0 / 15%);
+    border: 2px solid rgb(255 255 255 / 40%);
+	border-radius: 12px;
+	transition: all 0.15s ease;
+	opacity: 0;
+
+	&.active {
+		opacity: 1;
+		// background: #4e4c4c9e;
+		// border-color: rgb(250 194 205);
+		box-shadow: 0 0 24px rgb(255 255 255 / 30%), inset 0 0 12px rgba(99, 102, 241, 0.1);
+	}
+
+	// Left snap guide
+	&.snap-guide-left {
+		left: 0;
+		top: 0;
+		width: 50%;
+		height: 100%;
+		border-right-width: 3px;
+		border-left-width: 0;
+		border-top-width: 0;
+		border-bottom-width: 0;
+		border-radius: 0 12px 12px 0;
+	}
+
+	// Right snap guide
+	&.snap-guide-right {
+		right: 0;
+		top: 0;
+		width: 50%;
+		height: 100%;
+		border-left-width: 3px;
+		border-right-width: 0;
+		border-top-width: 0;
+		border-bottom-width: 0;
+		border-radius: 12px 0 0 12px;
+	}
+}
+
+// Snap guide icon/label in center of tile
+.snap-guide-label {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	font-size: 17px;
+    color: #fff;
+    font-weight: bold;
+	text-align: center;
+	pointer-events: none;
+	white-space: nowrap;
+	user-select: none;
+	opacity: 0;
+	transition: opacity 0.15s ease;
+
+	.snap-guide.active & {
+		opacity: 1;
+	}
+}
