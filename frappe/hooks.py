@@ -196,6 +196,9 @@ doc_events = {
 	"Page": {
 		"on_update": "frappe.cache_manager.build_domain_restriced_page_cache",
 	},
+	"User": {
+        "on_update": "frappe.desk.desktop.clear_user_sidebar_cache"
+    }
 }
 
 scheduler_events = {

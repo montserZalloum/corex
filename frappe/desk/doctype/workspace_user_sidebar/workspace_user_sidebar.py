@@ -33,6 +33,22 @@ class WorkspaceUserSidebar(Document):
 		# Update last modified timestamp
 		self.last_modified = frappe.utils.now()
 
+	# --- CACHE INVALIDATION START ---
+	def on_update(self):
+		"""Clear cache when sidebar is saved or reordered"""
+		self.clear_sidebar_cache()
+
+	def on_trash(self):
+		"""Clear cache when sidebar is deleted"""
+		self.clear_sidebar_cache()
+
+	def clear_sidebar_cache(self):
+		"""Delete the specific cache key for this user/workspace combination"""
+		# Key format matches the one used in get_user_sidebar_links
+		cache_key = f"sidebar_data::{self.user}::{self.workspace}"
+		frappe.cache().delete_value(cache_key)
+	# --- CACHE INVALIDATION END ---
+
 	def validate_link_permissions(self):
 		"""Validate that user has permission for all links"""
 		for link in self.sidebar_links:

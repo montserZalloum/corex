@@ -99,3 +99,20 @@ class DefaultWorkspaceSidebar(Document):
 				_("Only one sidebar link can be marked as default. Please uncheck the others."),
 				frappe.ValidationError
 			)
+
+	def on_update(self):
+		"""Clear cache for ALL users when this default sidebar is updated"""
+		self.clear_all_users_cache()
+
+	def on_trash(self):
+		"""Clear cache for ALL users when this default sidebar is deleted"""
+		self.clear_all_users_cache()
+
+	def clear_all_users_cache(self):
+		"""
+		Finds and deletes cache keys for this workspace for ALL users.
+		Key pattern: sidebar_data::{user}::{workspace}
+		"""
+		# Use delete_keys directly with the pattern. 
+		# This handles the site prefix and wildcard matching correctly.
+		frappe.cache().delete_keys(f"sidebar_data::*::{self.workspace}")

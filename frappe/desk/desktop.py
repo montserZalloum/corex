@@ -773,108 +773,119 @@ def update_onboarding_step(name, field, value):
 
 @frappe.whitelist()
 def get_user_sidebar_links(workspace_name):
-	"""
-	Get sidebar links for a workspace with permission filtering.
-	Handles "Category" type links by always including them.
-	Handles both standard 'Workspace' doctypes and core 'Module Def' workspaces.
-	"""
 	user = frappe.session.user
+	
+	# 1. Define a unique cache key
+	cache_key = f"sidebar_data::{user}::{workspace_name}"
+	
+	# 2. Try to get data from Redis
+	cached_data = frappe.cache().get_value(cache_key)
+	if cached_data:
+		return cached_data
 
-	# --- PERMISSION CHECK ---
-	# This block remains unchanged.
+	# --- HEAVY LIFTING STARTS HERE (Only runs on cache miss) ---
+
+	# Optimization: Combine existence and permission check if possible, 
+	# but your current logic is fine for security.
 	has_workspace_access = frappe.db.exists("Workspace", workspace_name) and frappe.has_permission("Workspace", doc=workspace_name)
 	has_module_access = frappe.db.exists("Module Def", workspace_name) and frappe.has_permission("Module Def", doc=workspace_name)
 
 	if not (has_workspace_access or has_module_access):
 		frappe.throw(_("You don't have permission to access this workspace"))
 
-	# Priority 1: Check for user's custom sidebar ("Workspace User Sidebar")
-	custom_sidebar_name = frappe.db.get_value(
-		"Workspace User Sidebar",
-		{"user": user, "workspace": workspace_name},
-		"name"
-	)
+	result = {}
+
+	# Priority 1: Check for user's custom sidebar
+	# Optimization: Attempt to fetch cached doc directly to save the get_value query
+	custom_sidebar_name = frappe.db.get_value("Workspace User Sidebar", {"user": user, "workspace": workspace_name}, "name", cache=True)
+	
 	if custom_sidebar_name:
-		doc = frappe.get_doc("Workspace User Sidebar", custom_sidebar_name)
+		# Use get_cached_doc to avoid DB hit if doc hasn't changed
+		doc = frappe.get_cached_doc("Workspace User Sidebar", custom_sidebar_name)
 		accessible_links = []
 		for link in doc.sidebar_links:
-			# MODIFICATION: Always include "Category" type links, otherwise check permission.
 			if link.link_type == "Category" or has_permission_for_sidebar_link(link):
-				accessible_links.append({
-					"link_type": link.link_type, "link_to": link.link_to, "label": link.label,
-					"icon": link.icon, "is_custom": link.is_custom, "is_default": link.is_default,
-					"idx": link.idx, "doc_view": getattr(link, "doc_view", None),
-					"kanban_board": getattr(link, "kanban_board", None), "color": getattr(link, "color", None),
-					"stats_filter": getattr(link, "stats_filter", None)
-				})
+				accessible_links.append(map_link(link, is_custom=link.is_custom))
+		
 		hidden_links = frappe.parse_json(doc.hidden_default_links or "[]")
-		return {"links": accessible_links, "hidden_links": hidden_links, "is_customized": True}
+		result = {"links": accessible_links, "hidden_links": hidden_links, "is_customized": True}
+		
+		# SAVE TO CACHE
+		frappe.cache().set_value(cache_key, result)
+		return result
 
-
-	# Priority 2: Check for admin's default sidebar ("Default Workspace Sidebar")
-	default_sidebar_name = frappe.db.get_value(
-		"Default Workspace Sidebar",
-		{"workspace": workspace_name},
-		"name"
-	)
+	# Priority 2: Check for admin's default sidebar
+	default_sidebar_name = frappe.db.get_value("Default Workspace Sidebar", {"workspace": workspace_name}, "name", cache=True)
+	
 	if default_sidebar_name:
 		try:
-			default_doc = frappe.get_doc("Default Workspace Sidebar", default_sidebar_name)
+			default_doc = frappe.get_cached_doc("Default Workspace Sidebar", default_sidebar_name)
 			accessible_links = []
 			for link in default_doc.sidebar_links:
-				# MODIFICATION: Apply the same logic for default sidebars.
 				if link.link_type == "Category" or has_permission_for_sidebar_link(link):
-					accessible_links.append({
-						"link_type": link.link_type, "link_to": link.link_to, "label": link.label,
-						"icon": link.icon, "is_custom": False, "is_default": link.is_default,
-						"idx": link.idx, "doc_view": getattr(link, "doc_view", None),
-						"kanban_board": getattr(link, "kanban_board", None), "color": getattr(link, "color", None),
-						"stats_filter": getattr(link, "stats_filter", None)
-					})
-			return {"links": accessible_links, "hidden_links": [], "is_customized": False, "is_default": True}
+					accessible_links.append(map_link(link, is_custom=False))
+			
+			result = {"links": accessible_links, "hidden_links": [], "is_customized": False, "is_default": True}
+			
+			# SAVE TO CACHE
+			frappe.cache().set_value(cache_key, result)
+			return result
 		except frappe.DoesNotExistError:
 			pass
 
-
-	# Priority 3: Fallback to the base Workspace DocType OR Module Def DocType
+	# Priority 3: Fallback to base Workspace/Module
 	workspace = None
 	try:
-		# First, try to get it as a standard Workspace document
-		workspace = frappe.get_doc("Workspace", workspace_name)
+		workspace = frappe.get_cached_doc("Workspace", workspace_name)
 	except frappe.DoesNotExistError:
 		try:
-			# If that fails, try to get it as a Module Definition
-			workspace = frappe.get_doc("Module Def", workspace_name)
+			workspace = frappe.get_cached_doc("Module Def", workspace_name)
 		except frappe.DoesNotExistError:
-			# If both fail, then it truly doesn't exist.
 			frappe.throw(_("Workspace {0} does not exist").format(workspace_name))
 
 	shortcuts = []
 	for link in workspace.links:
-		# Safely get the link_type. Workspace has it, Module Def might not.
 		link_type = getattr(link, "link_type", None)
-		
-		# The original logic to check permissions for standard links.
 		is_permitted_shortcut = getattr(link, "type", "shortcut") == "shortcut" and has_permission_for_workspace_link(link)
 
-		# MODIFICATION: Apply the same logic for the fallback workspace links.
 		if link_type == "Category" or is_permitted_shortcut:
-			shortcuts.append({
-				# Use the fetched type, fallback to "DocType" for older links (e.g., from Module Def)
-				"link_type": link_type or "DocType",
-				"link_to": link.link_to,
-				"label": link.label,
-				"icon": link.icon,
-				"is_custom": False,
-				"is_default": getattr(link, "is_default", 0),
-				"doc_view": getattr(link, "doc_view", None),
-				"kanban_board": getattr(link, "kanban_board", None),
-				"color": getattr(link, "color", None),
-				"stats_filter": getattr(link, "stats_filter", None)
-			})
+			# Handle slight schema differences between Workspace/Module Def link tables if necessary
+			shortcuts.append(map_link(link, is_custom=False, is_fallback=True))
 
-	return {"links": shortcuts, "hidden_links": [], "is_customized": False, "is_default": False}
+	result = {"links": shortcuts, "hidden_links": [], "is_customized": False, "is_default": False}
 	
+	# SAVE TO CACHE
+	frappe.cache().set_value(cache_key, result)
+	return result
+
+def map_link(link, is_custom=False, is_fallback=False):
+	"""Helper to keep the main function clean"""
+	return {
+		"link_type": getattr(link, "link_type", "DocType"),
+		"link_to": link.link_to,
+		"label": link.label,
+		"icon": link.icon,
+		"is_custom": is_custom,
+		"is_default": getattr(link, "is_default", 0),
+		"idx": link.idx,
+		"doc_view": getattr(link, "doc_view", None),
+		"kanban_board": getattr(link, "kanban_board", None),
+		"color": getattr(link, "color", None),
+		"stats_filter": getattr(link, "stats_filter", None)
+	}
+
+def clear_user_sidebar_cache(doc, method=None):
+    """
+    Clears sidebar cache for a specific user when their User document is updated.
+    Linked via hooks.py on User > on_update
+    """
+    # The cache key structure is: sidebar_data::{user_email}::{workspace_name}
+    # We use a wildcard (*) to clear all workspaces for this user
+    keys = frappe.cache().get_keys(f"sidebar_data::{doc.name}::*")
+    
+    for k in keys:
+        frappe.cache().delete_value(k)
+
 # You will also need these helper functions, or integrate their logic
 def has_permission_for_sidebar_link(link):
 	# Implement your permission logic here, e.g., check for doctype/page access
