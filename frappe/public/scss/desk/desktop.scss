@@ -1679,7 +1679,7 @@ body > .main-section > .sticky-top {
 		transition: .3s;
 	}
 	#navbar-breadcrumbs {
-		display: none;
+		display: none!important;
 	}
 }
 body > .main-section.show-header-above-all:has(.workspace-window) > .sticky-top {
