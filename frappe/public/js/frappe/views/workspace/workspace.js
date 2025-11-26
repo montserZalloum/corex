@@ -1588,7 +1588,7 @@ frappe.views.Workspace = class Workspace {
 		});
 	}
 
-	open_workspace_window(page) {
+	open_workspace_window(page, is_deep_link = false) {
 		// Create a unique window ID for this workspace
 		// Use timestamp + random to avoid issues with special characters in workspace names (like @ in emails)
 		const window_id = `workspace-window-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -1640,6 +1640,15 @@ frappe.views.Workspace = class Workspace {
 				<div class="resize-handle resize-handle-bottom-right" data-direction="bottom-right"></div>
 			</div>
 		`).appendTo(this.body);
+
+		// FIX: Set the deep link flag immediately upon creation
+		if (is_deep_link) {
+			$window.data("is-deep-linking", true);
+            // Cleanup flag after 3 seconds to allow future interactions to work normally
+            setTimeout(() => {
+                $window.data("is-deep-linking", false);
+            }, 3000);
+		}
 
 		// Store window reference and z-index
 		$window.data("workspace-instance", this);
@@ -2612,6 +2621,12 @@ frappe.views.Workspace = class Workspace {
 		 * Only navigates on first sidebar load
 		 */
 		const self = this;
+
+		// CRITICAL FIX: Skip if this window was opened via deep link/awesome bar
+		if ($window.data("is-deep-linking")) {
+			console.log("[Default Link Navigation] Skipping - Deep linking in progress");
+			return;
+		}
 
 		// Check if we're processing a deep link from page refresh/initialization
 		// If so, skip default link navigation to avoid overriding the deep link
@@ -4356,7 +4371,7 @@ frappe.views.Workspace = class Workspace {
 		
 		// 2. Open new workspace window
 		// FIX: Capture the return value directly. No need to query DOM or wait.
-		const $window = this.open_workspace_window({ name: workspace.name, public: workspace.public });
+		const $window = this.open_workspace_window({ name: workspace.name, public: workspace.public },true);
 		
 		// 3. Set active immediately
 		this.active_workspace_window = $window;
