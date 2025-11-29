@@ -1619,7 +1619,7 @@ frappe.views.Workspace = class Workspace {
 						<span class="breadcrumb-trail" style="display: none;"></span>
 					</div>
 					<div class="window-controls">
-						<button class="btn-window-back" title="Back" style="display: none;">←</button>
+						<button class="btn-window-back flip-ar" title="Back" style="display: none;">←</button>
 						<button class="btn-window-edit" title="Edit Workspace" style="${page.public && !this.has_access ? 'display: none;' : ''}">✎</button>
 						<button class="btn-window-minimize" title="Minimize">_</button>
 						<button class="btn-window-maximize" title="Maximize">□</button>
@@ -2047,10 +2047,18 @@ frappe.views.Workspace = class Workspace {
 			dragState.isDown = true;
 			$window.addClass("dragging");
 			$window.data("is-dragging", true); // Flag to prevent routing during drag
+
+			// Check if page is in RTL mode
+			const isRTL = $("html").attr("dir") === "rtl" || getComputedStyle(document.documentElement).direction === "rtl";
+
+			// Store whether we're using left or right property
+			const windowLeft = parseFloat($window.css("left")) || $window.offset().left;
+
 			dragState.offset = [
-				$window.offset().left - e.clientX,
+				windowLeft - e.clientX,
 				$window.offset().top - e.clientY
 			];
+			dragState.isRTL = isRTL;
 
 			// Bring to front by incrementing z-index
 			self.window_z_index += 1;
@@ -2059,7 +2067,7 @@ frappe.views.Workspace = class Workspace {
 			// Show snap guides when starting drag
 			self.show_snap_guides();
 
-			// Prevent any selection or default behavior during drag
+			//  Prevent any selection or default behavior during drag
 			e.preventDefault();
 		});
 
@@ -2072,10 +2080,21 @@ frappe.views.Workspace = class Workspace {
 				const maxLeft = $(window).width() - $window.outerWidth() + 100;
 				const maxTop = $(window).height() - $window.outerHeight() + 100;
 
-				$window.css({
-					left: Math.max(-100, Math.min(newLeft, maxLeft)) + "px",
+				const positionStyles = {
 					top: Math.max(0, Math.min(newTop, maxTop)) + "px"
-				});
+				};
+
+				// In RTL mode, use right instead of left
+				if (dragState.isRTL) {
+					positionStyles.left = "auto";
+					const rightValue = $(window).width() - (newLeft + $window.outerWidth());
+					positionStyles.right = Math.max(-100, Math.min(rightValue, maxLeft)) + "px";
+				} else {
+					positionStyles.right = "auto";
+					positionStyles.left = Math.max(-100, Math.min(newLeft, maxLeft)) + "px";
+				}
+
+				$window.css(positionStyles);
 
 				// Check for snap regions during drag and update dragState
 				dragState.snapRegion = self.check_snap_region(e.clientX);
@@ -4694,25 +4713,51 @@ frappe.views.Workspace = class Workspace {
 		const viewportWidth = $(window).width();
 		const SNAP_THRESHOLD = 60; // pixels from edge to trigger snap
 
+		// Check if page is in RTL mode
+		const isRTL = $("html").attr("dir") === "rtl" || getComputedStyle(document.documentElement).direction === "rtl";
+
 		let snapRegion = null;
 
-		// Check if cursor is in left half (snap left zone)
-		if (clientX < viewportWidth / 2 && clientX < SNAP_THRESHOLD * 2) {
-			$leftGuide.addClass("active");
-			$rightGuide.removeClass("active");
-			snapRegion = "left";
-		}
-		// Check if cursor is in right half (snap right zone)
-		else if (clientX > viewportWidth / 2 && clientX > viewportWidth - SNAP_THRESHOLD * 2) {
-			$rightGuide.addClass("active");
-			$leftGuide.removeClass("active");
-			snapRegion = "right";
-		}
-		// Cursor is in middle, deactivate both
-		else {
-			$leftGuide.removeClass("active");
-			$rightGuide.removeClass("active");
-			snapRegion = null;
+		if (isRTL) {
+			// In RTL mode, left and right are inverted
+			// Check if cursor is in left side (snap right zone in RTL)
+			if (clientX < SNAP_THRESHOLD * 2) {
+				$rightGuide.addClass("active");
+				$leftGuide.removeClass("active");
+				snapRegion = "right";
+			}
+			// Check if cursor is in right side (snap left zone in RTL)
+			else if (clientX > viewportWidth - SNAP_THRESHOLD * 2) {
+				$leftGuide.addClass("active");
+				$rightGuide.removeClass("active");
+				snapRegion = "left";
+			}
+			// Cursor is in middle, deactivate both
+			else {
+				$leftGuide.removeClass("active");
+				$rightGuide.removeClass("active");
+				snapRegion = null;
+			}
+		} else {
+			// LTR mode (original logic)
+			// Check if cursor is in left half (snap left zone)
+			if (clientX < viewportWidth / 2 && clientX < SNAP_THRESHOLD * 2) {
+				$leftGuide.addClass("active");
+				$rightGuide.removeClass("active");
+				snapRegion = "left";
+			}
+			// Check if cursor is in right half (snap right zone)
+			else if (clientX > viewportWidth / 2 && clientX > viewportWidth - SNAP_THRESHOLD * 2) {
+				$rightGuide.addClass("active");
+				$leftGuide.removeClass("active");
+				snapRegion = "right";
+			}
+			// Cursor is in middle, deactivate both
+			else {
+				$leftGuide.removeClass("active");
+				$rightGuide.removeClass("active");
+				snapRegion = null;
+			}
 		}
 
 		return snapRegion;
@@ -4726,9 +4771,13 @@ frappe.views.Workspace = class Workspace {
 		const snapWidth = viewportWidth / 2;
 		const snapHeight = viewportHeight;
 
+		// Check if page is in RTL mode
+		const isRTL = $("html").attr("dir") === "rtl" || getComputedStyle(document.documentElement).direction === "rtl";
+
 		// Get current position and size to preserve maximum/restore behavior
 		const currentState = {
 			left: $window.css("left"),
+			right: $window.css("right"),
 			top: $window.css("top"),
 			width: $window.css("width"),
 			height: $window.css("height")
@@ -4741,17 +4790,38 @@ frappe.views.Workspace = class Workspace {
 		$window.data("snap-history").push(currentState);
 
 		// Apply snap layout based on region
-		const snapConfig = region === "left" ? {
-			left: "0px",
-			top: "0px",
-			width: snapWidth + "px",
-			height: snapHeight + "px"
-		} : {
-			left: snapWidth + "px",
-			top: "0px",
-			width: snapWidth + "px",
-			height: snapHeight + "px"
-		};
+		let snapConfig;
+		if (isRTL) {
+			// In RTL mode, swap left and right positioning
+			snapConfig = region === "left" ? {
+				left: "auto",
+				right: "0px",
+				top: "0px",
+				width: snapWidth + "px",
+				height: snapHeight + "px"
+			} : {
+				left: "auto",
+				right: snapWidth + "px",
+				top: "0px",
+				width: snapWidth + "px",
+				height: snapHeight + "px"
+			};
+		} else {
+			// LTR mode (original logic)
+			snapConfig = region === "left" ? {
+				left: "0px",
+				right: "auto",
+				top: "0px",
+				width: snapWidth + "px",
+				height: snapHeight + "px"
+			} : {
+				left: snapWidth + "px",
+				right: "auto",
+				top: "0px",
+				width: snapWidth + "px",
+				height: snapHeight + "px"
+			};
+		}
 
 		// Animate to snap position
 		$window.css(snapConfig);
