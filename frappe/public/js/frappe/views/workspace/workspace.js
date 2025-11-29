@@ -3714,7 +3714,7 @@ frappe.views.Workspace = class Workspace {
 		$content.find(".window-page-view").hide();
 
 		// Show workspace content
-		$content.find(".desk-page").show();
+		$content.find(".desk-page,.window-main").show();
 
 		// Hide back button (we're at root, can't go further back)
 		$window.find(".btn-window-back").hide();
