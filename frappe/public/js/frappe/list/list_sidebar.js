@@ -39,11 +39,11 @@ frappe.views.ListSidebar = class ListSidebar {
 			});
 		}
 
-		if (frappe.user.has_role("System Manager")) {
-			this.add_insights_banner();
-			this.add_crm_banner();
-			this.add_helpdesk_banner();
-		}
+		// if (frappe.user.has_role("System Manager")) {
+		// 	this.add_insights_banner();
+		// 	this.add_crm_banner();
+		// 	this.add_helpdesk_banner();
+		// }
 	}
 
 	setup_views() {
