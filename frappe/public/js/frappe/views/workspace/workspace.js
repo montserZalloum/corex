@@ -1603,16 +1603,20 @@ frappe.views.Workspace = class Workspace {
 		const display_title = page.title || page.name;
 		let title; 
 		let worksSpaceLink;
-		if (0 && page.title) {
+		if (page.title) {
 			title = page.title.toLowerCase().split(' ').join('-');
 			worksSpaceLink = page.public ? title : 'private/'+title
 		} else {
 			title = page.name.toLowerCase().split(' ').join('-');
 			worksSpaceLink = page.public ? title : 'private/'+title
 		}
+		if (page.public) {
+			worksSpaceLink = page.name.toLowerCase().split(' ').join('-')
+		}
+		
 		// Create window container with inner content area 
 		const $window = $(`
-			<div class="workspace-window" data-workspace-name-only="${page.name}" data-workspace-link="/${worksSpaceLink}" id="${window_id}" data-page-name="${page.name}" data-page-public="${page.public}" style="--index:${windowIndex};z-index: ${current_z_index};">
+			<div class="workspace-window" data-workspace-name-only="${worksSpaceLink.replace('private/','')}" data-workspace-link="/${worksSpaceLink}" id="${window_id}" data-page-name="${page.name}" data-page-public="${page.public}" style="--index:${windowIndex};z-index: ${current_z_index};">
 				<div class="window-titlebar">
 					<div class="window-breadcrumb">
 						<span class="window-title">${display_title}</span>
@@ -3752,10 +3756,17 @@ frappe.views.Workspace = class Workspace {
 		$window.find(".sidebar-home-link").addClass("active");
 
 		// Navigate to workspace route
+		
 		const workspacePage = $window.data("workspace-page");
 		if (workspacePage) {
+			let workspaceNameOnly = $window.attr("data-workspace-name-only") || workspacePage.name;
+			const isRTL = $("html").attr("dir") === "rtl" || getComputedStyle(document.documentElement).direction === "rtl";
+			
+			if (workspacePage.public && isRTL) {
+				workspaceNameOnly = workspacePage.name;
+			}
 			// Use data-workspace-name-only for private workspaces to avoid email suffix issues
-			const workspaceNameOnly = $window.attr("data-workspace-name-only") || workspacePage.name;
+			
 			const workspaceRouteParts = workspacePage.public
 				? [frappe.router.slug(workspaceNameOnly)]
 				: ['private', frappe.router.slug(workspaceNameOnly)];
