@@ -123,6 +123,9 @@ $shadow-ultra: 0 30px 80px rgba(0, 0, 0, 0.2);
 		&[data-page-public="true"] .drag-handle {
 			display: none;
 		}
+		.window-sidebar:has(.sidebar-empty) {
+			display: none;
+		}
 	}
 	&.window-edit-mode {
 		.sidebar-link {
