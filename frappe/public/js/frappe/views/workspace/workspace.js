@@ -233,7 +233,9 @@ frappe.views.Workspace = class Workspace {
 			this.initialize_new_page(true);
 		});
 
-		this.body.find(".btn-edit-main-workspace").on("click", () => {
+		this.body.find(".btn-edit-main-workspace").on("click", (e) => {
+			$(e.currentTarget).hide();
+			document.body.classList.add('edit-main-screen')
 			this.edit_current_workspace();
 		});
 	}
@@ -1909,6 +1911,7 @@ frappe.views.Workspace = class Workspace {
 						`);
 
 						this.page.main.find(".btn-cancel-main-workspace").on("click", () => {
+							window.location.href = "/app";
 							this.cancel_main_workspace_edit(page);
 						});
 					}

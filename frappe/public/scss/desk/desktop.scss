@@ -932,7 +932,11 @@ body {
 		}
 	}
 }
-
+body.edit-main-screen {
+	.main-section header.navbar{
+		pointer-events: none;
+	}
+}
 [data-page-route="Workspaces"] {
 	@media (min-width: map-get($grid-breakpoints, "lg")) {
 		.layout-main {
@@ -1235,6 +1239,9 @@ body {
 
 		.standard-sidebar-section.show-control {
 			.desk-sidebar-item.standard-sidebar-item {
+				a {
+					pointer-events: none;
+				}
 				&:hover,
 				&.selected {
 					.drag-handle {
