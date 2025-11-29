@@ -1603,7 +1603,7 @@ frappe.views.Workspace = class Workspace {
 		const display_title = page.title || page.name;
 		let title; 
 		let worksSpaceLink;
-		if (page.title) {
+		if (0 && page.title) {
 			title = page.title.toLowerCase().split(' ').join('-');
 			worksSpaceLink = page.public ? title : 'private/'+title
 		} else {
@@ -1612,7 +1612,7 @@ frappe.views.Workspace = class Workspace {
 		}
 		// Create window container with inner content area 
 		const $window = $(`
-			<div class="workspace-window" data-workspace-name-only="${display_title}" data-workspace-link="/${worksSpaceLink}" id="${window_id}" data-page-name="${page.name}" data-page-public="${page.public}" style="--index:${windowIndex};z-index: ${current_z_index};">
+			<div class="workspace-window" data-workspace-name-only="${page.name}" data-workspace-link="/${worksSpaceLink}" id="${window_id}" data-page-name="${page.name}" data-page-public="${page.public}" style="--index:${windowIndex};z-index: ${current_z_index};">
 				<div class="window-titlebar">
 					<div class="window-breadcrumb">
 						<span class="window-title">${display_title}</span>

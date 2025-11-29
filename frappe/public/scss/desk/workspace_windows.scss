@@ -146,6 +146,13 @@ $shadow-ultra: 0 30px 80px rgba(0, 0, 0, 0.2);
 			visibility: hidden;
 		}
 	}
+	&:has(.window-main[style="display: none;"]) .window-titlebar {
+		.window-controls {
+			.btn-window-edit {
+				display: none;
+			}
+		}
+	}
 }
 
 @keyframes slideInMac {
@@ -1561,14 +1568,6 @@ $shadow-ultra: 0 30px 80px rgba(0, 0, 0, 0.2);
 		border-top-width: 0;
 		border-bottom-width: 0;
 		border-radius: 12px 0 0 12px;
-	}
-}
-[dir="rtl"] {
-	.flip-ar{
-		scale: -1;
-	}
-	.flip-ar-x,svg:has([href="#es-line-arrow-up-right"]) {
-		transform: scaleX(-1);
 	}
 }
 

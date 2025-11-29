@@ -212,3 +212,11 @@ body.full-width .container {
 		z-index: 20;
 	}
 }
+[dir="rtl"] {
+	.flip-ar,svg:has([href="#icon-arrow-right"]){
+		scale: -1;
+	}
+	.flip-ar-x,svg:has([href="#es-line-arrow-up-right"]) {
+		transform: scaleX(-1);
+	}
+}
