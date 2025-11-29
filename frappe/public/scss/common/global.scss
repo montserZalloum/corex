@@ -213,10 +213,14 @@ body.full-width .container {
 	}
 }
 [dir="rtl"] {
-	.flip-ar,svg:has([href="#icon-arrow-right"]){
+	.flip-ar,svg:has([href="#icon-arrow-right"]),
+	svg:has([href="#icon-arrow-left"]){
 		scale: -1;
 	}
-	.flip-ar-x,svg:has([href="#es-line-arrow-up-right"]) {
+	.flip-ar-x,svg:has([href="#es-line-arrow-up-right"]),
+	svg:has([href="#es-line-left-chevron"]),
+	svg:has([href="#es-line-arrow-up-left"]),
+	svg:has([href="#es-line-right-chevron"]) {
 		transform: scaleX(-1);
 	}
 }

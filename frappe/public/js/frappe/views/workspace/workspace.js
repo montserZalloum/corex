@@ -4439,10 +4439,14 @@ frappe.views.Workspace = class Workspace {
 			this.active_workspace_window = existing_window;
 			return;
 		}
-		
+		let obj = { name: workspace.name, public: workspace.public };
+		let target_workspace = document.querySelector('.cx-ROOT-layout > .layout-side-section > .list-sidebar .sidebar-item-container[item-id="'+workspace.name+'"] .item-anchor');
+		if (target_workspace) {
+			obj.title = target_workspace.getAttribute('title')
+		}
 		// 2. Open new workspace window
 		// FIX: Capture the return value directly. No need to query DOM or wait.
-		const $window = this.open_workspace_window({ name: workspace.name, public: workspace.public },true);
+		const $window = this.open_workspace_window(obj,true);
 		
 		// 3. Set active immediately
 		this.active_workspace_window = $window;
