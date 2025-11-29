@@ -3,12 +3,12 @@
 
 frappe.ui.form.on("Google Settings", {
 	refresh: function (frm) {
-		frm.dashboard.set_headline(
-			__("For more information, {0}.", [
-				`<a href='https://erpnext.com/docs/user/manual/en/google_settings'>${__(
-					"Click here"
-				)}</a>`,
-			])
-		);
+		// frm.dashboard.set_headline(
+		// 	__("For more information, {0}.", [
+		// 		`<a href='https://erpnext.com/docs/user/manual/en/google_settings'>${__(
+		// 			"Click here"
+		// 		)}</a>`,
+		// 	])
+		// );
 	},
 });
