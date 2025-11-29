@@ -1732,6 +1732,7 @@ frappe.views.Workspace = class Workspace {
 					$window.css({
 						position: "fixed",
 						left: savedPos.left + "px",
+						right: "auto",
 						top: savedPos.top + "px",
 						width: savedPos.width + "px",
 						height: savedPos.height + "px",
@@ -1760,6 +1761,7 @@ frappe.views.Workspace = class Workspace {
 				$window.css({
 					position: "fixed",
 					left: "0",
+					right: "0",
 					top: "0",
 					width: "100%",
 					height: "100%",
