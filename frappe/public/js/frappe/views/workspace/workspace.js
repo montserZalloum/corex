@@ -1772,8 +1772,6 @@ frappe.views.Workspace = class Workspace {
 					"border-radius": "0",
 					"z-index": "2000",
 					animation: "none",
-					"backdrop-filter": "none",
-					"-webkit-backdrop-filter": "none",
 					border: "none"
 				});
 
