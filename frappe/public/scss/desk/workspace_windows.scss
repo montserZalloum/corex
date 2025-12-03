@@ -109,6 +109,12 @@ $shadow-active: 0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(79, 70, 22
 			display: none;
 		}
 	}
+	&[data-page-public="1"],
+	&[data-page-public="true"] {
+		.window-sidebar:has(.sidebar-empty) {
+			display: none;
+		}
+	}
 	&.window-edit-mode {
 		.sidebar-link {
 			pointer-events: none;
