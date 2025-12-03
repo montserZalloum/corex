@@ -230,20 +230,6 @@ body[data-route^="Module"] .main-menu {
 
 	.overlay-sidebar {
 		@media (max-width: 991px) {
-			margin-top: 0 !important;
-			position: fixed;
-			background: var(--fg-color);
-			top: 0;
-			left: 0;
-			transform: translateX(-110%);
-			z-index: 9999;
-			box-shadow: var(--shadow-base);
-			height: 100%;
-			width: 40%;
-			display: block !important;
-			transition: transform 200ms ease-in-out;
-			padding: var(--padding-md);
-
 			&.opened {
 				transform: translateX(0);
 				overflow-y: auto;
@@ -254,10 +240,7 @@ body[data-route^="Module"] .main-menu {
 				background-color: var(--border-color);
 				opacity: 0.7;
 			}
-		}
-
-		@media (max-width: 767px) {
-			width: 60%;
+			display: block !important;
 		}
 	}
 

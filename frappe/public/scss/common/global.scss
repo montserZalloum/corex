@@ -224,3 +224,32 @@ body.full-width .container {
 		transform: scaleX(-1);
 	}
 }
+@media (max-width: 991px) { 
+	body {
+		height: auto;
+		min-height: 100vh;
+	}
+	#body > .page-container:first-of-type .cx-ROOT-layout {
+		padding-top: 30px;
+	}
+	.layout-side-section {
+		padding-inline-start: 15px;
+	}
+	.workspace-window {
+		width: 100%!important;
+		height: 100vh!important;
+		left: 0!important;
+		top: 0!important;
+		border-radius: 0!important;
+		box-shadow: none!important;
+		border: none!important;
+		.page-title {
+			.sidebar-toggle-btn {
+				display: none!important;
+			}
+		}
+		.btn-window-maximize {
+			display: none!important;
+		}
+	}
+}
