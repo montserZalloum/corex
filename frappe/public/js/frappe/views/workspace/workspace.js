@@ -4668,6 +4668,10 @@ frappe.views.Workspace = class Workspace {
 		$window.css("display", "");
 		$window.addClass("restoring");
 
+		// Bring window to front by incrementing z-index
+		this.window_z_index += 1;
+		$window.css("z-index", this.window_z_index);
+
 		// Restore position after animation
 		setTimeout(() => {
 			$window.removeClass("restoring minimized-to-dock");
@@ -4676,7 +4680,7 @@ frappe.views.Workspace = class Workspace {
 				top: preMinimizePos.top,
 				width: preMinimizePos.width,
 				height: preMinimizePos.height,
-				zIndex: preMinimizePos.zIndex
+				zIndex: this.window_z_index
 			});
 
 			// Remove from minimized windows list
