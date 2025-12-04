@@ -4060,8 +4060,13 @@ frappe.views.Workspace = class Workspace {
 		// Exit sidebar edit mode too
 		this.exit_sidebar_edit_mode($window, page);
 
-		// Reload content to discard changes
-		this.load_workspace_content(page, $window);
+		// Don't reload content - just show the workspace main content again
+		// This prevents the preserved pages from being re-added to the DOM
+		const $content = $window.find(".window-content");
+
+		// Simply show the workspace main content again (no page view active)
+		$content.find(".window-main").show();
+		$content.find(".window-page-view").hide();
 
 		frappe.show_alert({
 			message: __("Edit cancelled"),
