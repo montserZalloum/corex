@@ -40,7 +40,7 @@ $shadow-active: 0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(79, 70, 22
 	position: fixed;
 	min-width: 400px;
 	min-height: 300px;
-	width: 700px;
+	width: 1000px;
 	height: 500px;
 	display: flex;
 	flex-direction: column;
@@ -144,6 +144,9 @@ $shadow-active: 0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(79, 70, 22
 			}
 		}
 	}
+}
+.raven-chat:has(.raven-container[data-open-state="true"]) {
+	z-index: 3000;
 }
 
 @keyframes slideInMac {
