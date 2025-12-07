@@ -451,6 +451,13 @@ class ShortcutDialog extends WidgetDialog {
 				mandatory_depends_on: (s) => s.type == "URL",
 			},
 			{
+                fieldtype: "Check",
+				fieldname: "url_open_in_new_tab",
+				label: __("Open in new tab"),
+				default: "",
+				depends_on: (s) => s.type == "URL",
+            },
+			{
 				fieldtype: "Select",
 				fieldname: "doc_view",
 				label: __("DocType View"),

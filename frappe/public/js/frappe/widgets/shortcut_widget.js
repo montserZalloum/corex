@@ -21,6 +21,7 @@ export default class ShortcutWidget extends Widget {
 			stats_filter: this.stats_filter,
 			type: this.type,
 			url: this.url,
+			url_open_in_new_tab: this.url_open_in_new_tab,
 			kanban_board: this.kanban_board,
 		};
 	}
@@ -44,8 +45,8 @@ export default class ShortcutWidget extends Widget {
 			if (this.type == "DocType" && filters) {
 				frappe.route_options = filters;
 			}
-
-			if (e.ctrlKey || e.metaKey) {
+			
+			if (e.ctrlKey || e.metaKey || this.url_open_in_new_tab) {
 				frappe.open_in_new_tab = true;
 			}
 

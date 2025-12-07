@@ -8,6 +8,7 @@
   "type",
   "link_to",
   "url",
+  "url_open_in_new_tab",
   "doc_view",
   "kanban_board",
   "column_break_4",
@@ -104,6 +105,13 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "URL"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.type == \"URL\"",
+   "fieldname": "url_open_in_new_tab",
+   "fieldtype": "Check",
+   "label": "Open in new tab"
   },
   {
    "depends_on": "eval:doc.doc_view == \"Kanban\"",
