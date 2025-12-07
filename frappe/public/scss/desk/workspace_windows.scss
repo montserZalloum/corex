@@ -128,6 +128,7 @@ $shadow-active: 0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(79, 70, 22
 			pointer-events: auto;
 		}
 		.codex-editor {
+			padding-inline: 15px;
 			a {
 				pointer-events: none;
 			}

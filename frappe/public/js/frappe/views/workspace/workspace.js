@@ -3117,7 +3117,8 @@ frappe.views.Workspace = class Workspace {
 						indicator: "green"
 					});
 					// Reload sidebar
-					this.build_window_sidebar($window, page);
+					// this.build_window_sidebar($window, page);
+					window.location.reload(true)
 				}
 			},
 			error: () => {
@@ -4026,6 +4027,8 @@ frappe.views.Workspace = class Workspace {
 				// (workspace edit mode is already exited in save_window_workspace)
 				const $sidebar = $window.find(".window-sidebar");
 				$sidebar.removeClass("edit-mode");
+			} else {
+				window.location.reload(true)
 			}
 
 		} catch (error) {
