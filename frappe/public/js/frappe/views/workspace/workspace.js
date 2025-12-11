@@ -3494,7 +3494,7 @@ frappe.views.Workspace = class Workspace {
 			console.log(`[Deep Link] Active window exists:`, !!self.active_workspace_window);
 
 			// Check if there's an active workspace window
-			if (self.active_workspace_window && self.active_workspace_window.is(":visible")) {
+			if (self.active_workspace_window && (self.active_workspace_window.is(":visible") || self.active_workspace_window.hasClass("restoring")) ) {
 				console.log(`[Deep Link] Showing page in window instead of main view`);
 
 			// FIXED: Clear awesome bar selection flag after page is shown
@@ -4306,7 +4306,7 @@ frappe.views.Workspace = class Workspace {
 		// If a workspace window is already active and visible, return true.
 		// This tells the system "We are handling this" so the Container hooks can
 		// redirect the render into the existing window.
-		if (this.active_workspace_window && this.active_workspace_window.is(":visible")) {
+		if (this.active_workspace_window && (this.active_workspace_window.is(":visible") || this.active_workspace_window.hasClass("restoring"))) {
 			return true;
 		}
 
@@ -4453,6 +4453,18 @@ frappe.views.Workspace = class Workspace {
 		const existing_window = $(`.workspace-window[data-page-name="${workspace.name}"]`);
 		if (existing_window.length > 0) {
 			console.log(`[Deep Link] Workspace window already open, reusing`);
+			
+			// --- FIX START: Restore minimized window ---
+			if (existing_window.hasClass("minimized-to-dock")) {
+				console.log(`[Deep Link] Window is minimized, restoring...`);
+				this.restore_window_from_dock(existing_window);
+			}
+
+			// Bring to front to ensure it's on top of other windows
+			this.window_z_index += 1;
+			existing_window.css("z-index", this.window_z_index);
+			// --- FIX END ---
+
 			this.active_workspace_window = existing_window;
 			return;
 		}
