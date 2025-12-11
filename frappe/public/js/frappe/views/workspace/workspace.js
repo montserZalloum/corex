@@ -21,6 +21,13 @@ frappe.workspace_deep_link = {
 					}
 				}, 100);
 			}
+			// Force hard refresh on Logo click
+            $('body').on('click', 'header .navbar-brand.navbar-home', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                window.location.href = $(this).attr('href');
+            });
+
 		});
 	},
 
