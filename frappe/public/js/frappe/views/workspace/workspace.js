@@ -35,7 +35,9 @@ frappe.workspace_deep_link = {
 		// Wrap router.render to intercept deep links ONE time
 		if (!frappe.router._deep_link_render_wrapped) {
 			frappe.router._deep_link_render_wrapped = true;
-			const original_render = frappe.router.render;
+			// Store original for potential cleanup
+			frappe.router._original_render = frappe.router.render;
+			const original_render = frappe.router._original_render;
 
 			frappe.router.render = function(...args) {
 				// 1. Check if workspace instance exists to handle the logic
@@ -105,7 +107,7 @@ frappe.views.Workspace = class Workspace {
 		this.page = wrapper.page;
 		this.blocks = frappe.workspace_block.blocks;
 		this.is_read_only = true;
-		this.pages = {};
+		this.pages = {}; // NOTE: Page data caching disabled - kept for backwards compatibility
 		this.sorted_public_items = [];
 		this.sorted_private_items = [];
 		this.current_page = {};
@@ -290,6 +292,12 @@ frappe.views.Workspace = class Workspace {
 	}
 
 	make_sidebar() {
+		// Clear previous sidebar_items to prevent memory leak
+		this.sidebar_items = {
+			public: {},
+			private: {},
+		};
+
 		if (this.sidebar.find(".standard-sidebar-section")[0]) {
 			this.sidebar.find(".standard-sidebar-section").remove();
 		}
@@ -505,9 +513,8 @@ frappe.views.Workspace = class Workspace {
 			.then((data) => {
 				this.page_data = data.message;
 
-				// caching page data
-				this.pages[page.name] && delete this.pages[page.name];
-				this.pages[page.name] = data.message;
+				// NOTE: Caching removed - always fetch fresh data
+				// This reduces memory usage and prevents stale data
 
 				if (!this.page_data || Object.keys(this.page_data).length === 0) return;
 				if (this.page_data.charts && this.page_data.charts.items.length === 0) return;
@@ -520,7 +527,6 @@ frappe.views.Workspace = class Workspace {
 						this.page_data.charts.items.map((chart) => {
 							chart.chart_settings = chart_config[chart.chart_name] || {};
 						});
-						this.pages[page.name] = this.page_data;
 					}
 				});
 			});
@@ -913,13 +919,7 @@ frappe.views.Workspace = class Workspace {
 			}
 		}
 
-		// update page block data
-		if ((this.pages && this.pages[old_item.name]) || new_page) {
-			if (new_item) {
-				this.pages[new_item.name] = this.pages[old_item.name] || {};
-			}
-			!duplicate && delete this.pages[old_item.name];
-		}
+		// NOTE: Page block data caching removed (we now fetch fresh data each time)
 
 		// update public and private pages
 		if (new_item) {
@@ -2235,15 +2235,10 @@ frappe.views.Workspace = class Workspace {
 			this.add_custom_cards_in_content();
 		}
 
-		// Get data if not cached
-		if (this.pages && this.pages[current_page.name]) {
-			this.page_data = this.pages[current_page.name];
+		// Always fetch fresh data from server (no caching)
+		frappe.after_ajax(() => this.get_data(current_page)).then(() => {
 			this.render_window_content(page, $window);
-		} else {
-			frappe.after_ajax(() => this.get_data(current_page)).then(() => {
-				this.render_window_content(page, $window);
-			});
-		}
+		});
 	}
 
 	render_window_content(page, $window) {
@@ -2814,8 +2809,11 @@ frappe.views.Workspace = class Workspace {
 		// Skip sortable setup for public workspaces (sidebar is not customizable)
 		if (page.public || !$linksContainer.length) return;
 
+		// Store sortable instances for proper cleanup
+		const sortableInstances = [];
+
 		// Initialize Sortable.js for main container - supports both sidebar-link and sidebar-category elements
-		new Sortable($linksContainer[0], {
+		const mainSortable = new Sortable($linksContainer[0], {
 			handle: ".drag-handle",
 			draggable: ".sidebar-link.is-draggable, .sidebar-category.is-draggable",
 			animation: 150,
@@ -2829,10 +2827,11 @@ frappe.views.Workspace = class Workspace {
 				self.save_sidebar_order($window, page);
 			}
 		});
+		sortableInstances.push(mainSortable);
 
 		// Initialize Sortable.js for category items containers - allow dragging items in/out
 		$linksContainer.find(".sidebar-category-items").each(function() {
-			new Sortable(this, {
+			const categorySortable = new Sortable(this, {
 				handle: ".drag-handle",
 				draggable: ".sidebar-link.is-draggable",
 				animation: 150,
@@ -2846,7 +2845,28 @@ frappe.views.Workspace = class Workspace {
 					self.save_sidebar_order($window, page);
 				}
 			});
+			sortableInstances.push(categorySortable);
 		});
+
+		// Store for cleanup
+		$window.data("sidebar-sortables", sortableInstances);
+	}
+
+	// === DESTROY SIDEBAR SORTABLES ===
+	destroy_sidebar_sortables($window) {
+		const sortableInstances = $window.data("sidebar-sortables");
+		if (sortableInstances && Array.isArray(sortableInstances)) {
+			sortableInstances.forEach(sortable => {
+				try {
+					if (sortable && typeof sortable.destroy === 'function') {
+						sortable.destroy();
+					}
+				} catch (e) {
+					console.warn("Error destroying sidebar sortable:", e);
+				}
+			});
+		}
+		$window.removeData("sidebar-sortables");
 	}
 
 	save_sidebar_order($window, page) {
@@ -3597,41 +3617,31 @@ frappe.views.Workspace = class Workspace {
 			console.log(`[${workspaceName}] Stack:`, routeStack);
 		}
 
-		// Hide the workspace content
-		$content.find(".desk-page").hide();
+		// === FRESH RENDER APPROACH (No Caching) ===
+		// Step 1: Show loading spinner
+		this.show_window_loading_spinner($window, `Loading ${label}...`);
 
-		// Check if this page is already cached in this window
-		const $existingWrapper = $content.find(`.window-page-view[data-page-label="${label}"]`);
+		// Step 2: Destroy all existing page views (no more caching)
+		this.destroy_window_page_views($window);
 
-		if ($existingWrapper.length > 0) {
-			// Page is already cached in this window - just show it
-			// Hide all other page views and show this one
-			$content.find(".window-page-view").hide();
-			$existingWrapper.show().trigger('show'); 
- 
-			// Also ensure the page container inside is visiblee
-			const $pageInWrapper = $existingWrapper.find(".page-container");
-			if ($pageInWrapper.length > 0) {
-				$pageInWrapper.show().trigger('show');
-			}
+		// Step 3: Hide the workspace content (sidebar + main)
+		$content.find(".desk-page").hide(); 
+		// $content.find(".window-sidebar").hide();
+		$content.find(".window-main").hide();
 
-			console.log(`[${workspaceName}] Showing cached page: ${label}`);
-		} else {
-			// New page - hide all previously shown pages (don't remove them)
-			$content.find(".window-page-view").hide();
+		// Step 4: Create fresh wrapper for the page
+		const $pageWrapper = $(`<div class="window-page-view" data-page-label="${label}" style="width: 100%; height: 100%; overflow: auto;"></div>`);
 
-			// Create a wrapper for the page content
-			// This avoids DOM hierarchy issues and enables per-window caching
-			const $pageWrapper = $(`<div class="window-page-view" data-page-label="${label}" style="width: 100%; height: 100%; overflow: auto;"></div>`);
+		// Step 5: Move the actual page element to the window (not cloning)
+		// This ensures all event handlers and Frappe functionality works
+		$pageWrapper.append($page);
+		$page.show().trigger('show');
+		$content.append($pageWrapper);
 
-			// Move the actual page element to the window (not cloning)
-			// This ensures all event handlers and Frappe functionality works
-			$pageWrapper.append($page);
-			$page.show().trigger('show'); // Ensure the page is visible (it might have been hidden during cleanup)
-			$content.append($pageWrapper);
+		// Step 6: Hide loading spinner
+		this.hide_window_loading_spinner($window);
 
-			console.log(`[${workspaceName}] Created new cached page: ${label}`);
-		}
+		console.log(`[${workspaceName}] Fresh render page: ${label}`);
 
 		// Update breadcrumb
 		this.update_window_breadcrumb($window, label);
@@ -3781,6 +3791,21 @@ frappe.views.Workspace = class Workspace {
 	}
 
 	cleanup_window_pages($window) {
+		// === DESTROY EDITORJS INSTANCE ===
+		const editor = $window.data("workspace-editor");
+		if (editor && typeof editor.destroy === 'function') {
+			try {
+				editor.destroy();
+			} catch (e) {
+				console.warn("Error destroying EditorJS:", e);
+			}
+			$window.removeData("workspace-editor");
+		}
+
+		// === DESTROY SORTABLE INSTANCES ===
+		this.destroy_window_sortable($window);
+		this.destroy_sidebar_sortables($window);
+
 		const $content = $window.find(".window-content");
 
 		// Detach all pages from window wrappers and move them back to the main body
@@ -3790,6 +3815,8 @@ frappe.views.Workspace = class Workspace {
 			const $pages = $wrapper.find(".page-container");
 
 			// Move pages back to main body (hidden)
+			// IMPORTANT: Do NOT call .off() on page elements!
+			// This would destroy Frappe's original event handlers (forms, lists, etc.)
 			$pages.each((idx, page) => {
 				const $page = $(page);
 				$page.hide(); // Hide before moving
@@ -3805,6 +3832,9 @@ frappe.views.Workspace = class Workspace {
 		$window.find(".btn-window-close").off("click");
 		$window.find(".btn-window-minimize").off("click");
 		$window.find(".btn-window-maximize").off("click");
+		$window.find(".btn-window-edit").off("click");
+		$window.find(".btn-window-back").off("click");
+		$window.find(".btn-window-cancel-edit").off("click");
 
 		// Content mousedown listener (sets active window)
 		$window.find(".window-content").off("mousedown");
@@ -3812,6 +3842,11 @@ frappe.views.Workspace = class Workspace {
 		// Sidebar link listeners
 		$window.find(".sidebar-link").off("click");
 		$window.find(".sidebar-home-link").off("click");
+		$window.find(".sidebar-category-header").off("click");
+
+		// Sidebar edit mode handlers
+		$window.find(".is-default-checkbox").off("change");
+		$window.find(".btn-add-link").off("click");
 
 		// Window title bar listeners (dragging)
 		$window.find(".window-titlebar").off("mousedown");
@@ -3834,6 +3869,89 @@ frappe.views.Workspace = class Workspace {
 
 		// Clear all jQuery data stored on the window
 		$window.removeData();
+	}
+
+	// === LOADING SPINNER INFRASTRUCTURE ===
+	show_window_loading_spinner($window, message = "Loading...") {
+		const $content = $window.find(".window-content");
+		$content.find(".window-loading-spinner").remove();
+
+		const $spinner = $(`
+			<div class="window-loading-spinner" style="
+				position: absolute;
+				top: 0;
+				left: 0;
+				right: 0;
+				bottom: 0;
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+				justify-content: center;
+				background: var(--bg-color, #fff);
+				z-index: 100;
+			">
+				<div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+					<span class="sr-only">${message}</span>
+				</div>
+				<p class="mt-3 text-muted">${message}</p>
+			</div>
+		`);
+
+		$content.css("position", "relative").append($spinner);
+		return $spinner;
+	}
+
+	hide_window_loading_spinner($window) {
+		$window.find(".window-loading-spinner").fadeOut(200, function() {
+			$(this).remove();
+		});
+	}
+
+	// === CLEANUP ROUTER HOOKS ===
+	// Call this method if workspace is destroyed to restore original router behavior
+	cleanup_router_hooks() {
+		if (frappe.router._deep_link_render_wrapped && frappe.router._original_render) {
+			frappe.router.render = frappe.router._original_render;
+			delete frappe.router._deep_link_render_wrapped;
+			delete frappe.router._original_render;
+		}
+
+		// Restore Container.change_to if it was wrapped
+		if (frappe.views.Container.prototype._original_change_to) {
+			frappe.views.Container.prototype.change_to = frappe.views.Container.prototype._original_change_to;
+			delete frappe.views.Container.prototype._original_change_to;
+			delete frappe.views.Container.prototype._workspace_routing_setup;
+		}
+
+		// Restore jQuery methods if they were wrapped
+		if (jQuery.fn._original_append) {
+			jQuery.fn.append = jQuery.fn._original_append;
+			jQuery.fn.prepend = jQuery.fn._original_prepend;
+			delete jQuery.fn._original_append;
+			delete jQuery.fn._original_prepend;
+		}
+	}
+
+	// === DESTROY PAGE VIEWS (for fresh render) ===
+	destroy_window_page_views($window) {
+		const $content = $window.find(".window-content");
+
+		$content.find(".window-page-view").each((index, wrapper) => {
+			const $wrapper = $(wrapper);
+			const $pages = $wrapper.find(".page-container");
+
+			$pages.each((idx, page) => {
+				const $page = $(page);
+				// IMPORTANT: Do NOT call .off() on page elements!
+				// This would destroy Frappe's original event handlers (forms, lists, etc.)
+				// We only hide and move the page back to body for reuse
+				$page.hide();
+				$(document.body).append($page);
+			});
+
+			// Destroy the wrapper only (not the page content)
+			$wrapper.remove();
+		});
 	}
 
 	initialize_window_editor(editor_id, blocks) {
