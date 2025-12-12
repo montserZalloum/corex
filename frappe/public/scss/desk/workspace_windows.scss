@@ -512,6 +512,7 @@ $shadow-active: 0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(79, 70, 22
 .sidebar-category {
 	margin-bottom: 4px;
 	display: block;
+	position:relative;
 	
 	.sidebar-category-header {
 		width: 100%;
@@ -530,7 +531,7 @@ $shadow-active: 0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(79, 70, 22
 		position: relative;
 		touch-action: none;
 		user-select: none;
-
+		padding-inline-start:4px;
 		&:hover {
 			background: rgba(99, 102, 241, 0.08);
 			color: #6366f1;
@@ -573,7 +574,7 @@ $shadow-active: 0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(79, 70, 22
 	.sidebar-category-items {
 		display: flex;
 		flex-direction: column;
-		gap: 2px;
+		gap: 0;
 		overflow: hidden;
 		transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 
@@ -581,6 +582,42 @@ $shadow-active: 0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(79, 70, 22
 			padding: 8px 4px;
 			margin-bottom: 0;
 			font-size: 12px;
+
+			&:before {
+				content: "";
+				position: absolute;
+				top: 0;
+				left: 0px;
+				bottom: 0;
+				width: 4px;
+				height: 4px;
+				background-color: #e9becd;
+				border-radius: 50%;
+				margin: auto;
+				pointer-events: none;
+				flex-shrink: 0;
+				min-width: 4px;
+			}
+			&:after {
+				content: "";
+				position: absolute;
+				top: 0;
+				left: 1px;
+				width: 1px;
+				height: 100%;
+				background-color: #e9becd;
+				pointer-events: none;
+			}
+			&:first-of-type:after {
+				height: 50%;
+				top: 50%;
+			}
+			&:last-of-type:after {
+				height: 50%;
+			}
+			&:only-of-type:after {
+				content: none;
+			}
 		}
 	}
 
@@ -905,6 +942,7 @@ $shadow-active: 0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(79, 70, 22
 
 .window-page-view {
 	.page-head {
+		z-index: 1022;
 		top: 0;
 		background: rgba(255, 255, 255, 0.5);
 		backdrop-filter: blur(10px);
@@ -1009,6 +1047,35 @@ $shadow-active: 0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(79, 70, 22
 	z-index: calc(1000 - var(--index, 4));
 	max-width: 100vw;
 	max-height: 100vh;
+	.toggle-sidebar-menu {
+		position: absolute;
+		left: 194px;
+		top: 66px;
+		width: 23px;
+		height: 23px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border: 1px solid #eeeeee;
+		border-inline-start: 0;
+		cursor: pointer;
+		background: #181818;
+		border-radius: 8px ;
+		z-index:1;
+		transition: .3s;
+		color: #fff;
+		display: none;
+	}
+	&.hide-leftside-menu {
+		.toggle-sidebar-menu {
+			top: 55px;
+			left: 0;
+			scale: -1;
+		}
+	}
+	&:has(.sidebar-home-link) .toggle-sidebar-menu {
+		display: flex;
+	}
 }
 .workspace-window.closing-window {
 	filter: blur(10px);

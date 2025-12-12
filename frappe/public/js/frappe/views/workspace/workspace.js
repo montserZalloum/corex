@@ -1642,6 +1642,9 @@ frappe.views.Workspace = class Workspace {
 						<p>Loading ${display_title}...</p>
 					</div>
 				</div>
+				<div class="toggle-sidebar-menu">
+					←
+				</div>
 				<!-- Resize handles -->
 				<div class="resize-handle resize-handle-top" data-direction="top"></div>
 				<div class="resize-handle resize-handle-bottom" data-direction="bottom"></div>
@@ -1798,6 +1801,11 @@ frappe.views.Workspace = class Workspace {
 			await this.toggle_window_edit_mode($window, page);
 		});
 
+		$window.find(".toggle-sidebar-menu").on("click", () => {
+			const $sidebar = $window.find(".window-sidebar");
+			$sidebar.toggle();
+			$window.toggleClass('hide-leftside-menu')
+		});
 
 		// Load workspace content
 		this.load_workspace_content(page, $window);
@@ -2367,7 +2375,11 @@ frappe.views.Workspace = class Workspace {
 
 				// Create category header with collapse toggle
 				const category_html = `
-					<div class="sidebar-category sidebar-link ${is_draggable_class}" data-category-id="${category_id}">
+					<div class="sidebar-category sidebar-link ${is_draggable_class}" 
+						data-link-type="Category"
+						data-label="${frappe.utils.escape_html(label)}"
+						data-icon="${icon}"
+						data-category-id="${category_id}">
 						<div class="sidebar-category-header" data-toggle="${category_id}">
 							<div class="drag-handle">
 								<svg class="icon icon-xs">
@@ -3112,7 +3124,7 @@ frappe.views.Workspace = class Workspace {
 
 	save_sidebar_customizations($window, page) {
 		const links = [];
-
+		
 		// Collect all links from DOM
 		$window.find(".sidebar-link:not(.sidebar-home-link)").each(function() {
 			const $link = $(this);
@@ -3384,7 +3396,11 @@ frappe.views.Workspace = class Workspace {
 		if (values.link_type === "Category") { 
 			const category_id = `category-${frappe.router.slug(values.label)}-${Date.now()}`;
 			const category_html = `
-				<div class="sidebar-category sidebar-link is-draggable" data-label="${frappe.utils.escape_html(values.label)}" data-link-type="Category" data-category-id="${category_id}">
+				<div class="sidebar-category sidebar-link is-draggable"
+					data-link-type="Category"
+					data-label="${frappe.utils.escape_html(values.label)}"
+					data-icon="${values.icon}"
+					data-link-type="Category" data-category-id="${category_id}">
 					<div class="sidebar-category-header" data-toggle="${category_id}">
 						<div class="drag-handle">
 							<svg class="icon icon-xs"><use href="#icon-drag"></use></svg>
