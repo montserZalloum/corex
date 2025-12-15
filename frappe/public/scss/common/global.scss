@@ -220,8 +220,11 @@ body.full-width .container {
 	.flip-ar-x,svg:has([href="#es-line-arrow-up-right"]),
 	svg:has([href="#es-line-left-chevron"]),
 	svg:has([href="#es-line-arrow-up-left"]),
-	svg:has([href="#es-line-right-chevron"]) {
+	svg:has([href="#es-line-right-chevron"]){
 		transform: scaleX(-1);
+	}
+	.workspace-window.hide-leftside-menu .toggle-sidebar-menu {
+		scale: 1;
 	}
 }
 @media (max-width: 991px) { 

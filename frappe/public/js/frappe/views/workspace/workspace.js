@@ -1642,7 +1642,7 @@ frappe.views.Workspace = class Workspace {
 						<p>Loading ${display_title}...</p>
 					</div>
 				</div>
-				<div class="toggle-sidebar-menu">
+				<div class="toggle-sidebar-menu flip-ar">
 					←
 				</div>
 				<!-- Resize handles -->
