@@ -716,34 +716,9 @@ details > summary:focus {
 .chart-wrapper {
 	padding: 1em;
 }
-
-// REDESIGN TODO: Handling of broken images?
-// img.no-image:before {
-// 	.img-background();
-// }
-
-// img.no-image:after {
-// 	.img-foreground();
-// }
-
-// img.img-loading:before {
-// 	.img-background();
-// }
-
-// img.img-loading:after {
-// 	.img-foreground();
-// 	font-family: 'Octicons';
-// 	content: "\f00b";
-// }
-
-/*rtl:raw:
-.dropdown-menu {
-	right: auto;
+.modal-backdrop {
+	z-index: 3990;
 }
-.popover {
-	right: auto;
+.modal {
+	z-index: 4000;
 }
-.chart-container {
-	direction: ltr;
-}
-*/
