@@ -4715,10 +4715,10 @@ frappe.views.Workspace = class Workspace {
 			this.snap_guides_container = $(`
 				<div class="snap-guides-container">
 					<div class="snap-guide snap-guide-left">
-						<div class="snap-guide-label">Snap Left</div>
+						<div class="snap-guide-label"></div>
 					</div>
 					<div class="snap-guide snap-guide-right">
-						<div class="snap-guide-label">Snap Right</div>
+						<div class="snap-guide-label"></div>
 					</div>
 				</div>
 			`);
