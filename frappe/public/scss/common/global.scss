@@ -213,8 +213,12 @@ body.full-width .container {
 	}
 }
 [dir="rtl"] {
+	body, .page-content, .form-control, .navbar, .page-wrapper, .message-body {
+		font-family:'Tahoma', sans-serif;
+	}
 	.flip-ar,svg:has([href="#icon-arrow-right"]),
-	svg:has([href="#icon-arrow-left"]){
+	svg:has([href="#icon-arrow-left"]),
+	.datepicker--nav-action{
 		scale: -1;
 	}
 	.flip-ar-x,svg:has([href="#es-line-arrow-up-right"]),
