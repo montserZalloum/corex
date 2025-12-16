@@ -1577,6 +1577,24 @@ $shadow-active: 0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(79, 70, 22
 		left:auto;
 		right:0;
 	}
+	.custom-actions {
+		.custom-btn-group {
+			position: relative;
+			.dropdown-menu.show {
+				transform: none!important;
+				left: auto!important;
+				right:0!important;
+				top: 28px !important;
+			}
+		}
+	}
+	.list-sidebar .list-link {
+		position: relative;
+		.dropdown-menu {
+			transform: none !important;
+			top: 28px !important;
+		}
+	}
 }
 
 [data-theme="dark"] {
