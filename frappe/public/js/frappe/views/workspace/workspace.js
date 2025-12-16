@@ -1630,16 +1630,16 @@ frappe.views.Workspace = class Workspace {
 						<span class="breadcrumb-trail" style="display: none;"></span>
 					</div>
 					<div class="window-controls">
-						<button class="btn-window-back flip-ar" title="Back" style="display: none;">←</button>
-						<button class="btn-window-edit" title="Edit Workspace" style="${page.public && !this.has_access ? 'display: none;' : ''}">✎</button>
-						<button class="btn-window-minimize" title="Minimize">_</button>
-						<button class="btn-window-maximize" title="Maximize">□</button>
-						<button class="btn-window-close" title="Close">×</button>
+						<button class="btn-window-back flip-ar" title="${__('Back')}" style="display: none;">←</button>
+						<button class="btn-window-edit" title="${__('Edit Workspace')}" style="${page.public && !this.has_access ? 'display: none;' : ''}">✎</button>
+						<button class="btn-window-minimize" title="${__('Minimize')}">_</button>
+						<button class="btn-window-maximize" title="${__('Maximize')}">□</button>
+						<button class="btn-window-close" title="${__('Close')}">×</button>
 					</div>
 				</div>
 				<div class="window-content">
 					<div class="window-loader" style="text-align: center; padding: 20px;">
-						<p>Loading ${display_title}...</p>
+						<p>${__('Loading')} ${display_title}...</p>
 					</div>
 				</div>
 				<div class="toggle-sidebar-menu flip-ar">
@@ -2353,7 +2353,7 @@ frappe.views.Workspace = class Workspace {
 				<svg class="icon icon-sm sidebar-link-icon">
 					<use href="#icon-home"></use>
 				</svg>
-				<span class="sidebar-link-label">Home</span>
+				<span class="sidebar-link-label">${__('Home')}</span>
 			</div>
 		`;
 		$sidebar.append(home_link_html);

@@ -1568,6 +1568,16 @@ $shadow-active: 0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(79, 70, 22
 		opacity: 1;
 	}
 }
+[dir="rtl"] {
+	.resize-handle-right {
+		right:auto;
+		left:0;
+	}
+	.resize-handle-left {
+		left:auto;
+		right:0;
+	}
+}
 
 [data-theme="dark"] {
     // 1. Desktop Background - Deep Midnight Mesh
