@@ -4992,3 +4992,114 @@ frappe.views.Workspace = class Workspace {
 	}
 
 };
+
+$(document).ready(function() {
+    // 1. Only run in RTL mode
+    if (!frappe.utils.is_rtl()) return;
+
+    const fixRtlPopoverPosition = () => {
+        const $popover = $('.filter-popover.show');
+        if ($popover.length === 0) return;
+
+        // Find the active button
+        let $button = $(document.activeElement);
+        // Fallback if focus is lost
+        if (!$button.hasClass('btn') && !$button.closest('.filter-selector').length) {
+            $button = $('.add-filter-group:visible, .filter-button:visible').first();
+        }
+
+        if ($button.length) {
+            // --- DIMENSIONS & COORDINATES ---
+            const btnOffset = $button.offset();
+            const btnWidth = $button.outerWidth();
+            const btnHeight = $button.outerHeight();
+            const popoverWidth = $popover.outerWidth();
+            const windowWidth = $(window).width();
+            
+            // Gap between button and popover
+            const GAP = 5; 
+
+            // --- HORIZONTAL LOGIC (Collision Detection) ---
+            
+            // Standard RTL Goal: Align Right edge of Popover with Right edge of Button.
+            // This means the popover expands to the left.
+            // Let's calculate where the Left edge of the popover would land:
+            const btnRightEdgePosition = btnOffset.left + btnWidth; // Pixels from left screen edge
+            const potentialPopoverLeftEdge = btnRightEdgePosition - popoverWidth;
+
+            let finalStyles = {
+                'transform': 'none',
+                'top': (btnOffset.top + btnHeight + GAP) + 'px',
+                'display': 'block'
+            };
+
+            let arrowStyles = {
+                'transform': 'none'
+            };
+
+            // CHECK: Does it go off the left side of the screen? (e.g. < 10px margin)
+            if (potentialPopoverLeftEdge < 10) {
+                // FLIP! Align Left edge of Popover with Left edge of Button
+                finalStyles['left'] = btnOffset.left + 'px';
+                finalStyles['right'] = 'auto';
+
+                // Arrow follows the button center relative to the popover
+                arrowStyles['left'] = (btnWidth / 2) + 'px';
+                arrowStyles['right'] = 'auto';
+            } else {
+                // STANDARD: Align Right edge of Popover with Right edge of Button
+                // We calculate distance from the RIGHT screen edge for CSS
+                const distanceFromRightScreen = windowWidth - btnRightEdgePosition;
+                
+                finalStyles['left'] = 'auto';
+                finalStyles['right'] = distanceFromRightScreen + 'px';
+
+                // Arrow follows the button center
+                arrowStyles['left'] = 'auto';
+                arrowStyles['right'] = (btnWidth / 2) + 'px';
+            }
+
+            // --- VERTICAL LOGIC (Optional Safety) ---
+            // If it goes below the screen, you might want to consider that, 
+            // but usually scrolling handles it. 
+            // If you want to force it UP if it hits bottom:
+            /*
+            const popoverHeight = $popover.outerHeight();
+            const windowHeight = $(window).height();
+            const bottomOverflow = (btnOffset.top + btnHeight + popoverHeight) - windowHeight;
+            if (bottomOverflow > 0) {
+                finalStyles['top'] = (btnOffset.top - popoverHeight - GAP) + 'px';
+                $popover.removeClass('bs-popover-bottom').addClass('bs-popover-top');
+            }
+            */
+
+            // --- APPLY STYLES ---
+            $popover.css(finalStyles);
+            $popover.find('.arrow').css(arrowStyles);
+        }
+    };
+
+    // Observer to watch for the popover appearing
+    const observer = new MutationObserver((mutationsList) => {
+        for (const mutation of mutationsList) {
+            if (mutation.type === 'childList' || mutation.type === 'attributes') {
+                const target = mutation.target;
+                if ($(target).hasClass('filter-popover') || $(target).find('.filter-popover').length) {
+                    // Use requestAnimationFrame to wait for render
+                    requestAnimationFrame(() => {
+                        if ($('.filter-popover').hasClass('show')) {
+                            fixRtlPopoverPosition();
+                        }
+                    });
+                }
+            }
+        }
+    });
+
+    observer.observe(document.body, { 
+        attributes: true, 
+        childList: true, 
+        subtree: true,
+        attributeFilter: ['class'] 
+    });
+});
