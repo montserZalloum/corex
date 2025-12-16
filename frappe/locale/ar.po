@@ -19552,7 +19552,7 @@ msgstr "جمهور"
 #: frappe/public/js/frappe/views/workspace/workspace.js:35
 msgctxt "Workspace Category"
 msgid "Public"
-msgstr "جمهور"
+msgstr "الكل"
 
 #. Label of a Float field in DocType 'System Health Report'
 #: frappe/desk/doctype/system_health_report/system_health_report.json
