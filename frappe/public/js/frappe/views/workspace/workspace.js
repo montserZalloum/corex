@@ -1921,11 +1921,11 @@ frappe.views.Workspace = class Workspace {
 					// Add cancel button if not exists
 					if (!this.page.main.find(".btn-cancel-main-workspace").length) {
 						$editBtn.after(`
-							<button class="btn btn-default ellipsis btn-cancel-main-workspace" title="Cancel">
+							<button class="btn btn-default ellipsis btn-cancel-main-workspace" title="${__("Save Changes")}">
 								<svg class="es-icon es-line icon-xs" style="" aria-hidden="true">
 									<use class="" href="#es-line-close"></use>
 								</svg>
-								<span class="hidden-xs">${__("Cancel")}</span>
+								<span class="hidden-xs">${__("Save Changes")}</span>
 							</button>
 						`);
 
@@ -2305,7 +2305,7 @@ frappe.views.Workspace = class Workspace {
 		const self = this;
 		const $sidebar = $window.find(".window-sidebar");
 		$sidebar.empty();
-		$sidebar.html('<div class="sidebar-loading">Loading sidebar...</div>');
+		$sidebar.html('<div class="sidebar-loading">'+__('Loading sidebar...')+'</div>');
 
 		// Get sidebar links from backend API (with permission filtering)
 		frappe.call({
@@ -2489,7 +2489,7 @@ frappe.views.Workspace = class Workspace {
 					<svg class="icon icon-sm sidebar-link-icon">
 						<use href="#icon-${icon}"></use>
 					</svg>
-					<span class="sidebar-link-label">${label}</span>
+					<span class="sidebar-link-label">${__(label)}</span>
 				</div>
 			`;
 
@@ -3028,16 +3028,13 @@ frappe.views.Workspace = class Workspace {
 				<div class="sidebar-header edit-mode-header">
 					<h5>${display_title} - Edit</h5>
 					<div class="edit-controls">
-						<button class="btn btn-xs btn-add-link" title="Add Link">
+						<button class="btn btn-xs btn-add-link" title="${__('Add Link')}">
 							<svg class="icon icon-xs"><use href="#icon-add"></use></svg>
 						</button>
-						<button class="btn btn-xs btn-save-sidebar" title="Save">
-							<svg class="icon icon-xs"><use href="#icon-save"></use></svg>
+						<button class="btn btn-xs btn-save-sidebar" title="${__('Save')}">
+							💾
 						</button>
-						<button class="btn btn-xs btn-reset-sidebar" title="Reset">
-							<svg class="icon icon-xs"><use href="#icon-refresh"></use></svg>
-						</button>
-						<button class="btn btn-xs btn-cancel-edit" title="Cancel">
+						<button class="btn btn-xs btn-cancel-edit" title="${__('Cancel')}">
 							<svg class="icon icon-xs"><use href="#icon-close"></use></svg>
 						</button>
 					</div>
@@ -3046,23 +3043,20 @@ frappe.views.Workspace = class Workspace {
 			$sidebar.append(header_html);
 
 			// Add empty links container
-			$sidebar.append('<div class="sidebar-links"><div class="sidebar-empty">No links yet. Click Add to create one.</div></div>');
+			$sidebar.append('<div class="sidebar-links"><div class="sidebar-empty">'+__('No links yet. Click Add to create one.')+'</div></div>');
 		} else {
 			// Replace existing header with edit controls
 			const header_html = `
 				<div class="sidebar-header edit-mode-header">
-					<h5>${display_title} - Edit</h5>
+					<h5>${display_title}</h5>
 					<div class="edit-controls">
-						<button class="btn btn-xs btn-add-link" title="Add Link">
+						<button class="btn btn-xs btn-add-link" title="${__('Add Link')}">
 							<svg class="icon icon-xs"><use href="#icon-add"></use></svg>
 						</button>
-						<button class="btn btn-xs btn-save-sidebar" title="Save">
-							<svg class="icon icon-xs"><use href="#icon-save"></use></svg>
+						<button class="btn btn-xs btn-save-sidebar" title="${__('Save')}">
+							💾
 						</button>
-						<button class="btn btn-xs btn-reset-sidebar" title="Reset">
-							<svg class="icon icon-xs"><use href="#icon-refresh"></use></svg>
-						</button>
-						<button class="btn btn-xs btn-cancel-edit" title="Cancel">
+						<button class="btn btn-xs btn-cancel-edit" title="${__('Cancel')}">
 							<svg class="icon icon-xs"><use href="#icon-close"></use></svg>
 						</button>
 					</div>
@@ -3098,11 +3092,6 @@ frappe.views.Workspace = class Workspace {
 		// Save button
 		$window.find(".btn-save-sidebar").off("click").on("click", function() {
 			self.save_sidebar_customizations($window, page);
-		});
-
-		// Reset button
-		$window.find(".btn-reset-sidebar").off("click").on("click", function() {
-			self.reset_sidebar_customizations($window, page);
 		});
 
 		// Cancel button
@@ -3170,29 +3159,6 @@ frappe.views.Workspace = class Workspace {
 		});
 	}
 
-	reset_sidebar_customizations($window, page) {
-		frappe.confirm(
-			__("Are you sure you want to reset sidebar to default?"),
-			() => {
-				frappe.call({
-					method: "frappe.desk.desktop.reset_user_sidebar",
-					args: {
-						workspace_name: page.name
-					},
-					callback: (r) => {
-						if (r.message && r.message.success) {
-							frappe.show_alert({
-								message: r.message.message,
-								indicator: "green"
-							});
-							// Reload sidebar
-							this.build_window_sidebar($window, page);
-						}
-					}// .bind(this)
-				});
-			}
-		);
-	}
 
 	show_add_link_dialog($window, page) {
 		const self = this;
@@ -3200,7 +3166,7 @@ frappe.views.Workspace = class Workspace {
 		frappe.call({
 			method: "frappe.desk.desktop.get_permitted_link_options",
 			freeze: true,
-    		freeze_message: "Loading...",
+    		freeze_message: __('Loading...'),
 			callback: (r) => {
 				if (r.message) {
 					self.render_add_link_dialog($window, page, r.message);
@@ -3889,7 +3855,7 @@ frappe.views.Workspace = class Workspace {
 	}
 
 	// === LOADING SPINNER INFRASTRUCTURE ===
-	show_window_loading_spinner($window, message = "Loading...") {
+	show_window_loading_spinner($window, message = __('Loading...')) {
 		const $content = $window.find(".window-content");
 		$content.find(".window-loading-spinner").remove();
 
@@ -4086,10 +4052,10 @@ frappe.views.Workspace = class Workspace {
 
 			// Change edit button to save button
 			const $editBtn = $window.find(".btn-window-edit");
-			$editBtn.attr("title", "Save Changes").text("💾");
+			$editBtn.attr("title", __("Save Changes")).text("💾");
 
 			// Add cancel button
-			$editBtn.after(`<button class="btn-window-cancel-edit" title="Cancel">✕</button>`);
+			$editBtn.after(`<button class="btn-window-cancel-edit" title="${__("Cancel")}">✕</button>`);
 
 			// Setup cancel button handler
 			$window.find(".btn-window-cancel-edit").on("click", async () => {
