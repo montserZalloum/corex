@@ -1598,6 +1598,9 @@ $shadow-active: 0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(79, 70, 22
 	.indicator::before {
 		margin-inline: 0 8px;
 	}
+	.timeline-content {
+		unicode-bidi: plaintext;
+	}
 } // ##RTL
 
 [data-theme="dark"] {

@@ -3863,26 +3863,26 @@ msgstr ""
 #: frappe/public/js/frappe/form/templates/set_sharing.html:4
 #: frappe/public/js/frappe/form/templates/set_sharing.html:50
 msgid "Can Read"
-msgstr ""
+msgstr "يستطيع القراءة"
 
 #: frappe/public/js/frappe/form/templates/set_sharing.html:7
 #: frappe/public/js/frappe/form/templates/set_sharing.html:53
 msgid "Can Share"
-msgstr ""
+msgstr "يستطيع المشاركة"
 
 #: frappe/public/js/frappe/form/templates/set_sharing.html:6
 #: frappe/public/js/frappe/form/templates/set_sharing.html:52
 msgid "Can Submit"
-msgstr ""
+msgstr "يستطيع التثبيت"
 
 #: frappe/public/js/frappe/form/templates/set_sharing.html:5
 #: frappe/public/js/frappe/form/templates/set_sharing.html:51
 msgid "Can Write"
-msgstr ""
+msgstr "يستطيع الكتابة"
 
 #: frappe/custom/doctype/custom_field/custom_field.py:394
 msgid "Can not rename as column {0} is already present on DocType."
-msgstr ""
+msgstr "لا يمكن إعادة التسمية لأن العمود {0} موجود بالفعل في DocType."
 
 #: frappe/core/doctype/doctype/doctype.py:1126
 msgid "Can only change to/from Autoincrement naming rule when there is no data in the doctype"
@@ -16970,7 +16970,7 @@ msgstr "وثيقة الاشتراك المكتوبة"
 
 #: frappe/public/js/frappe/form/templates/timeline_message_box.html:7
 msgid "Notification sent to"
-msgstr ""
+msgstr "تم إرسال الإشعار إلى"
 
 #. Label of a Check field in DocType 'User'
 #: frappe/core/doctype/user/user.json
@@ -22128,7 +22128,7 @@ msgstr "البحث عن أي شيء"
 #: frappe/public/js/frappe/ui/toolbar/awesome_bar.js:300
 #: frappe/public/js/frappe/ui/toolbar/awesome_bar.js:306
 msgid "Search for {0}"
-msgstr ""
+msgstr "بحث عن {0}"
 
 #: frappe/public/js/frappe/ui/toolbar/awesome_bar.js:166
 msgid "Search in a document type"
@@ -22136,7 +22136,7 @@ msgstr "بحث في نوع الوثيقة"
 
 #: frappe/public/js/frappe/ui/toolbar/navbar.html:29
 msgid "Search or type a command ({0})"
-msgstr ""
+msgstr "ابحث أو اكتب أمرًا ({0})"
 
 #: frappe/public/js/form_builder/components/SearchBox.vue:8
 msgid "Search properties..."
@@ -23254,7 +23254,7 @@ msgstr "مشاركة مع"
 
 #: frappe/public/js/frappe/form/templates/set_sharing.html:49
 msgid "Share this document with"
-msgstr ""
+msgstr "مشاركة هذا المستند مع"
 
 #: frappe/public/js/frappe/form/sidebar/share.js:45
 msgid "Share {0} with"
@@ -29036,7 +29036,7 @@ msgstr ""
 #: frappe/public/js/frappe/form/footer/form_timeline.js:415
 msgctxt "Form timeline"
 msgid "You attached {0}"
-msgstr ""
+msgstr "أرفقت {0}"
 
 #: frappe/printing/page/print_format_builder/print_format_builder.js:741
 msgid "You can add dynamic properties from the document by using Jinja templating."
