@@ -54,7 +54,7 @@ frappe.ui.Page = class Page {
 				if (current_scroll > 0 && last_scroll <= current_scroll) {
 					$(".page-head").css("top", "-15px");
 				} else {
-					$(".page-head").css("top", "var(--navbar-height)");
+					// $(".page-head").css("top", "var(--navbar-height)");
 				}
 				last_scroll = current_scroll;
 			}, 500)

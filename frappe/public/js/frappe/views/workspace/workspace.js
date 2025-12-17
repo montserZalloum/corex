@@ -3599,10 +3599,9 @@ frappe.views.Workspace = class Workspace {
 			console.log(`[${workspaceName}] Pushed to stack: ${currentRoute}`);
 			console.log(`[${workspaceName}] Stack:`, routeStack);
 		}
-
 		// === FRESH RENDER APPROACH (No Caching) ===
 		// Step 1: Show loading spinner
-		this.show_window_loading_spinner($window, `Loading ${label}...`);
+		this.show_window_loading_spinner($window, `${__('Loading')}...`);
 
 		// Step 2: Destroy all existing page views (no more caching)
 		this.destroy_window_page_views($window);

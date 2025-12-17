@@ -8583,7 +8583,7 @@ msgstr "تاريخ الاستحقاق بناء على"
 #: frappe/public/js/frappe/form/grid_row_form.js:42
 #: frappe/public/js/frappe/form/toolbar.js:419
 msgid "Duplicate"
-msgstr "مكررة"
+msgstr "تكرير"
 
 #: frappe/printing/doctype/print_format_field_template/print_format_field_template.py:53
 msgid "Duplicate Entry"
@@ -22304,7 +22304,7 @@ msgstr "تقارير"
 
 #: frappe/patches/v14_0/update_workspace2.py:50
 msgid "Reports & Masters"
-msgstr "التقارير والماجستير"
+msgstr "التقارير والملفات الرئيسية"
 
 #: frappe/public/js/frappe/views/reports/query_report.js:925
 msgid "Reports already in Queue"

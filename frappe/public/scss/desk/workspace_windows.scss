@@ -1481,6 +1481,9 @@ $shadow-active: 0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(79, 70, 22
 		}
 	}
 }
+#page-query-report .page-head {
+	position:relative!important;
+}
 // #freeze {
 // 	display: none;
 // }
@@ -1600,6 +1603,9 @@ $shadow-active: 0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(79, 70, 22
 	}
 	.timeline-content {
 		unicode-bidi: plaintext;
+	}
+	.datatable .dt-header .dt-cell--header .dt-cell__content {
+		text-align:start;
 	}
 } // ##RTL
 
