@@ -4997,7 +4997,7 @@ $(document).ready(function() {
     if (!frappe.utils.is_rtl()) return;
 
     const fixRtlPopoverPosition = () => {
-        const $popover = $('.filter-popover.show');
+        const $popover = $('.filter-popover.show, .group-by-popover.show');
         if ($popover.length === 0) return;
 
         // Find the active button
@@ -5017,7 +5017,7 @@ $(document).ready(function() {
             
             // Gap between button and popover
             const GAP = 5; 
-
+			
             // --- HORIZONTAL LOGIC (Collision Detection) ---
             
             // Standard RTL Goal: Align Right edge of Popover with Right edge of Button.
@@ -5080,20 +5080,27 @@ $(document).ready(function() {
 
     // Observer to watch for the popover appearing
     const observer = new MutationObserver((mutationsList) => {
-        for (const mutation of mutationsList) {
-            if (mutation.type === 'childList' || mutation.type === 'attributes') {
-                const target = mutation.target;
-                if ($(target).hasClass('filter-popover') || $(target).find('.filter-popover').length) {
-                    // Use requestAnimationFrame to wait for render
-                    requestAnimationFrame(() => {
-                        if ($('.filter-popover').hasClass('show')) {
-                            fixRtlPopoverPosition();
-                        }
-                    });
-                }
-            }
-        }
-    });
+		for (const mutation of mutationsList) {
+			if (mutation.type === 'childList' || mutation.type === 'attributes') {
+				const target = mutation.target;
+				const $target = $(target);
+				
+				// Define both classes in one variable for cleaner code
+				const popoverSelector = '.filter-popover, .group-by-popover';
+	
+				// Check if the target IS one of the popovers OR if it CONTAINS one of them
+				if ($target.is(popoverSelector) || $target.find(popoverSelector).length) {
+					
+					requestAnimationFrame(() => {
+						// Check if ANY of the popovers currently have the 'show' class
+						if ($(popoverSelector).filter('.show').length) {
+							fixRtlPopoverPosition();
+						}
+					});
+				}
+			}
+		}
+	});
 
     observer.observe(document.body, { 
         attributes: true, 
