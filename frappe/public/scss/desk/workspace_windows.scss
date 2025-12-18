@@ -734,7 +734,19 @@ $shadow-active: 0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(79, 70, 22
 	cursor: grabbing !important;
 	transform: rotate(2deg);
 }
-
+.desk-sidebar .standard-sidebar-section.show-control .desk-sidebar-item.standard-sidebar-item {
+	&.selected {}
+	.drag-handle {
+		opacity:1;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0;
+		svg {
+			margin:0;
+		}
+	}
+}
 // Empty state
 .sidebar-empty {
 	padding: 24px 16px;
