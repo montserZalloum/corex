@@ -100,6 +100,7 @@
    "description": "Check if this is a custom link added by user (not from default workspace)",
    "fieldname": "is_custom",
    "fieldtype": "Check",
+   "hidden": 1,
    "label": "Is Custom Link"
   },
   {

@@ -4997,7 +4997,7 @@ $(document).ready(function() {
     if (!frappe.utils.is_rtl()) return;
 
     const fixRtlPopoverPosition = () => {
-        const $popover = $('.filter-popover.show, .group-by-popover.show');
+        const $popover = $('.filter-popover.show, .group-by-popover.show,.icon-picker-popover.show');
         if ($popover.length === 0) return;
 
         // Find the active button
@@ -5086,8 +5086,8 @@ $(document).ready(function() {
 				const $target = $(target);
 				
 				// Define both classes in one variable for cleaner code
-				const popoverSelector = '.filter-popover, .group-by-popover';
-	
+				const popoverSelector = '.filter-popover, .group-by-popover, .icon-picker-popover';
+	 
 				// Check if the target IS one of the popovers OR if it CONTAINS one of them
 				if ($target.is(popoverSelector) || $target.find(popoverSelector).length) {
 					
@@ -5102,6 +5102,7 @@ $(document).ready(function() {
 		}
 	});
 
+	
     observer.observe(document.body, { 
         attributes: true, 
         childList: true, 
