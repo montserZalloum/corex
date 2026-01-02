@@ -4693,7 +4693,11 @@ frappe.views.Workspace = class Workspace {
 
 	minimize_window_to_dock($window) {
 		const windowId = $window.attr("id");
-		const windowTitle = $window.find(".window-title").text();
+		let windowTitle = $window.find(".window-title").text();
+		if ($window.find('.window-page-view:visible').length > 0 ) {
+			windowTitle = $window.find('.window-page-view:visible .page-head .title-text').text();
+		}
+
 
 		// Save window state before minimizing
 		$window.data("pre-minimize-position", {
@@ -4744,11 +4748,19 @@ frappe.views.Workspace = class Workspace {
 
 	add_dock_item(windowId, windowTitle, $window) {
 		// Get first letter or a default icon
-		const firstLetter = windowTitle.charAt(0).toUpperCase();
+		// const firstLetter = windowTitle.charAt(0).toUpperCase();
+		const $sidebarItem = $('.sidebar-item-container[item-name="'+windowTitle+'"]');
+		let icon = windowTitle.charAt(0).toUpperCase();
+		// if ($($sidebarItem).attr('item-public') == '0') { // private
+		// } else { // public
+		// 	icon = `<svg class="icon  icon-md" style="" aria-hidden="true">
+		// 				<use class="" href="${$sidebarItem.find('.sidebar-item-icon svg use').attr('href')}"></use>
+		// 			</svg>`
+		// }
 
 		const $dockItem = $(`
 			<div class="dock-item" data-window-id="${windowId}">
-				<div class="dock-item-icon">${firstLetter}</div>
+				<div class="dock-item-icon">${icon}</div>
 				<div class="dock-item-label">${windowTitle}</div>
 			</div>
 		`);
