@@ -296,7 +296,7 @@ frappe.msgprint = function (msg, title, is_minimizable) {
 	frappe.msg_dialog.msg_area.append(data.message);
 
 	// make msgprint always appear on top
-	frappe.msg_dialog.$wrapper.css("z-index", 2000);
+	frappe.msg_dialog.$wrapper.css("z-index", 4001);
 	frappe.msg_dialog.show();
 
 	return frappe.msg_dialog;
