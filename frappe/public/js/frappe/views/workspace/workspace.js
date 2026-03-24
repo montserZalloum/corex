@@ -4747,20 +4747,21 @@ frappe.views.Workspace = class Workspace {
 	}
 
 	add_dock_item(windowId, windowTitle, $window) {
-		// Get first letter or a default icon
-		// const firstLetter = windowTitle.charAt(0).toUpperCase();
-		const $sidebarItem = $('.sidebar-item-container[item-name="'+windowTitle+'"]');
-		let icon = windowTitle.charAt(0).toUpperCase();
-		// if ($($sidebarItem).attr('item-public') == '0') { // private
-		// } else { // public
-		// 	icon = `<svg class="icon  icon-md" style="" aria-hidden="true">
-		// 				<use class="" href="${$sidebarItem.find('.sidebar-item-icon svg use').attr('href')}"></use>
-		// 			</svg>`
-		// }
+		let iconContent = '';
+		let fallbackLetter = windowTitle.charAt(0).toUpperCase();
+		const pagePublic = $window.attr("data-page-public") ? 1 : 0;
+		const workspaceName = $window.attr("data-workspace-name");
+		if (pagePublic !== undefined && workspaceName) {
+			const $sidebarItem = $(`.cx-ROOT-layout > .layout-side-section > .list-sidebar > .sidebar-menu .sidebar-item-container[item-public="${pagePublic}"][item-name="${workspaceName}"]`);
+			const iconHref = $sidebarItem.find(".sidebar-item-icon use").attr("href");
+			if (iconHref) {
+				iconContent = `<svg class="icon icon-md" style="filter: brightness(0) invert(1);" aria-hidden="true"><use href="${iconHref}"></use></svg>`;
+			}
+		}
 
 		const $dockItem = $(`
 			<div class="dock-item" data-window-id="${windowId}">
-				<div class="dock-item-icon">${icon}</div>
+				<div class="dock-item-icon">${iconContent || fallbackLetter}</div>
 				<div class="dock-item-label">${windowTitle}</div>
 			</div>
 		`);
