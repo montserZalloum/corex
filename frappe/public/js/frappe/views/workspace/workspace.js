@@ -2517,7 +2517,7 @@ frappe.views.Workspace = class Workspace {
 		this.setup_sidebar_navigation($window);
 
 		// Render count badges for sidebar links
-		this.render_sidebar_count_badges($window);
+		// this.render_sidebar_count_badges($window);
 
 		// Enable drag-and-drop reordering
 		this.setup_sidebar_sortable($window, page);
