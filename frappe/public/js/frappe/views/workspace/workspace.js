@@ -2456,7 +2456,7 @@ frappe.views.Workspace = class Workspace {
 			} else if (link.link_type === 'Page') {
 				route = `/app/${doctype_slug}`;
 			} else if (link.link_type === 'Report') {
-				route = `/app/query-report/${doctype_slug}`;
+				route = `/app/query-report/${encodeURIComponent(link.link_to)}`;
 			} else if (link.link_type === 'URL') {
 				route = link.link_to; // Direct URL
 			} else {
@@ -3429,7 +3429,7 @@ frappe.views.Workspace = class Workspace {
 		} else if (values.link_type === 'Page') {
 			route = `/app/${frappe.router.slug(link_to)}`;
 		} else if (values.link_type === 'Report') {
-			route = `/app/query-report/${frappe.router.slug(link_to)}`;
+			route = `/app/query-report/${encodeURIComponent(link_to)}`;
 		}
 
 		// Create link HTML with new fields
