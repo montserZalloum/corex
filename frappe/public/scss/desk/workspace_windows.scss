@@ -1175,9 +1175,51 @@ $shadow-active: 0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(79, 70, 22
 .workspace-window.closing-window {
 	filter: blur(10px);
 }
-
+.mobile-sidebar-toggle {
+	display:none;
+}
 
 @media (max-width: 768px) {
+
+	// On mobile, hide the workspace sidebar by default (same hidden state as
+	// the `hide-leftside-menu` class). The toggle button sets an inline
+	// `display` via jQuery, which overrides this so it can still be opened.
+	.workspace-window .window-sidebar {
+		display: none;
+	}
+
+	// Because the sidebar starts hidden on mobile, the toggle state is
+	// inverted vs. desktop: no class = collapsed, `.hide-leftside-menu` = open.
+	// Mirror the button positioning to match.
+	.workspace-window {
+		.toggle-sidebar-menu {
+			top: 35px;
+			scale: -1;
+			left:0;
+		}
+		&.hide-leftside-menu .toggle-sidebar-menu {
+			top: 66px;
+			left: 194px;
+			scale: 1;
+		}
+	}
+	.window-page-view {
+		.mobile-sidebar-toggle {
+			display:inline-flex;
+		}
+		.layout-side-section {
+			&.mobile-sidebar-open {
+				.overlay-sidebar {
+					display: block!important;
+				}
+			}
+			&:not(.mobile-sidebar-open) {
+				.overlay-sidebar {
+					display: none!important;
+				}
+			}
+		}
+	}
 	
 
 	.window-titlebar {
@@ -1574,6 +1616,9 @@ $shadow-active: 0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(79, 70, 22
 			font-size: 10px;
 			max-width: 60px;
 		}
+	}
+	.workspace-footer {
+		bottom: 10px;
 	}
 }
 #page-query-report .page-head {

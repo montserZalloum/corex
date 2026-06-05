@@ -215,7 +215,61 @@ frappe.ui.Page = class Page {
 				$(document.body).trigger("toggleSidebar");
 				this.update_sidebar_icon();
 			});
+
+			this.setup_mobile_sidebar_toggle(sidebar_wrapper);
 		}
+	}
+
+	setup_mobile_sidebar_toggle(sidebar_wrapper) {
+		// On mobile the .layout-side-section content is hidden by default
+		// (see page.scss). Add a dedicated toggle button inside the section to
+		// reveal/hide its content. The toggled class lives on the section
+		// element, which survives the .empty() that list views perform.
+		let make_toggle = () => {
+			let is_open = sidebar_wrapper.hasClass("mobile-sidebar-open");
+			let toggle = $(`
+				<button class="btn-reset mobile-sidebar-toggle" aria-expanded="${is_open}"
+					aria-label="${__("Toggle Sidebar")}">
+					<span class="mobile-sidebar-toggle-icon">
+						${frappe.utils.icon(
+							is_open ? "es-line-sidebar-collapse" : "es-line-sidebar-expand",
+							"sm"
+						)}
+					</span>
+					<span class="mobile-sidebar-toggle-label">${__("Menu")}</span>
+				</button>
+			`);
+
+			toggle.on("click", () => {
+				let open = sidebar_wrapper
+					.toggleClass("mobile-sidebar-open")
+					.hasClass("mobile-sidebar-open");
+				toggle.attr("aria-expanded", open);
+				toggle
+					.find(".mobile-sidebar-toggle-icon")
+					.html(
+						frappe.utils.icon(
+							open ? "es-line-sidebar-collapse" : "es-line-sidebar-expand",
+							"sm"
+						)
+					);
+			});
+
+			sidebar_wrapper.prepend(toggle);
+		};
+
+		if (!sidebar_wrapper.children(".mobile-sidebar-toggle").length) {
+			make_toggle();
+		}
+
+		// List/other views call .empty() on the side section, removing the
+		// toggle. Re-add it whenever it goes missing.
+		let observer = new MutationObserver(() => {
+			if (!sidebar_wrapper.children(".mobile-sidebar-toggle").length) {
+				make_toggle();
+			}
+		});
+		observer.observe(sidebar_wrapper.get(0), { childList: true });
 	}
 
 	setup_overlay_sidebar() {

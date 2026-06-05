@@ -44,11 +44,51 @@
 }
 
 .page-container {
-	
+
 
 	.page-body.full-width {
 		width: 100%;
 		max-width: 100%;
+	}
+}
+
+// Mobile sidebar toggle for .layout-side-section
+// Hidden on desktop; the side section behaves as usual there.
+.mobile-sidebar-toggle {
+	display: none;
+}
+
+@media (max-width: 767px) {
+	// Hide the side section content by default on mobile, keeping the toggle
+	// button visible. When open, the rule lifts and children use their
+	// natural display (no override needed).
+	.layout-side-section:not(.mobile-sidebar-open) > *:not(.mobile-sidebar-toggle) {
+		display: none;
+	}
+
+	.mobile-sidebar-toggle {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		margin: 0 0 var(--margin-md) 0;
+		padding: 6px 12px;
+		border: 1px solid var(--border-color);
+		border-radius: var(--border-radius);
+		background: var(--fg-color);
+		color: var(--text-color);
+		font-size: var(--text-sm);
+		cursor: pointer;
+		--icon-stroke: var(--text-color);
+
+		.mobile-sidebar-toggle-icon {
+			display: inline-flex;
+		}
+	}
+
+	// Avoid two competing sidebar toggles on mobile — the page-head hamburger
+	// opens an overlay inside the now-hidden section, so it would be a dead control.
+	.page-head .sidebar-toggle-btn {
+		display: none;
 	}
 }
 
